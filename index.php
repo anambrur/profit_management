@@ -1,3 +1,3 @@
 <?php
-"helow world"
+"hello world"
 ?>
