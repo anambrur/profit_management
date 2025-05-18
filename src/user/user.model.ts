@@ -23,7 +23,6 @@ const userSchema = new mongoose.Schema(
     },
     address: {
       type: String,
-      required: true,
     },
     password: {
       type: String,
@@ -31,18 +30,19 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['ADMIN', 'USER'],
-      default: 'USER',
+      enum: ['admin', 'user', 'manager'],
+      default: 'user',
     },
     status: {
       type: String,
-      enum: ['ACTIVE', 'INACTIVE'],
-      default: 'ACTIVE',
+      enum: ['active', 'inactive'],
+      default: 'active',
     },
     profileImage: {
       type: String,
       default: null,
     },
+    profileImagePublicId: { type: String, default: null },
   },
   {
     timestamps: true,
