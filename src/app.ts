@@ -1,16 +1,17 @@
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
-import express from 'express';
+import express, { Application } from 'express';
 import ExpressMongoSanitize from 'express-mongo-sanitize';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import envConfig from './config/envConfig.js';
 import globalError from './middlewares/globalError.js';
+import storeRouter from './store/store.route.js';
 import userRouter from './user/user.routes.js';
 
-const app = express();
+const app: Application = express();
 
 if (envConfig.nodeEnv !== 'development') {
   app.use(helmet());
@@ -36,6 +37,7 @@ if (envConfig.nodeEnv !== 'development') {
 }
 
 app.use('/api/users', userRouter);
+app.use('/api/stores', storeRouter);
 
 // Global Error Handler
 app.use(globalError);
