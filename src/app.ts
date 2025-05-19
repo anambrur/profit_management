@@ -8,6 +8,8 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import envConfig from './config/envConfig.js';
 import globalError from './middlewares/globalError.js';
+import orderRouter from './order/order.route.js';
+import productRouter from './product/product.routes.js';
 import storeRouter from './store/store.route.js';
 import userRouter from './user/user.routes.js';
 
@@ -38,6 +40,8 @@ if (envConfig.nodeEnv !== 'development') {
 
 app.use('/api/users', userRouter);
 app.use('/api/stores', storeRouter);
+app.use('/api/products', productRouter);
+app.use('/api/orders', orderRouter);
 
 // Global Error Handler
 app.use(globalError);
