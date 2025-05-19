@@ -1,10 +1,12 @@
 import bcrypt from 'bcryptjs';
 import { NextFunction, Request, Response } from 'express';
 import expressAsyncHandler from 'express-async-handler';
+import fs from 'fs';
 import createHttpError from 'http-errors';
 import jwt from 'jsonwebtoken';
 import cloudinary from '../config/cloudinary';
 import envConfig from '../config/envConfig';
+import uploadLocalFileToCloudinary from '../service/fileUpload.service';
 import userModel from './user.model';
 
 //  ✅ Create User
@@ -31,16 +33,13 @@ export const createUser = expressAsyncHandler(
       let imageUrl = '';
       let profileImagePublicId = '';
       if (req.file) {
-        const result = await new Promise<any>((resolve, reject) => {
-          cloudinary.uploader
-            .upload_stream({ folder: 'user_profile_images' }, (err, result) => {
-              if (err) return reject(err);
-              resolve(result);
-            })
-            .end(req.file?.buffer ?? Buffer.alloc(0));
-        });
-        imageUrl = result.secure_url;
-        profileImagePublicId = result.public_id;
+        const result = await uploadLocalFileToCloudinary(
+          req.file.path,
+          'users_profile_images'
+        );
+        await fs.promises.unlink(req.file.path);
+        imageUrl = (result as { secure_url: string }).secure_url;
+        profileImagePublicId = (result as { public_id: string }).public_id;
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -127,22 +126,14 @@ export const updateUser = expressAsyncHandler(
           await cloudinary.uploader.destroy(user.profileImagePublicId);
         }
 
-        const result = await new Promise<any>((resolve, reject) => {
-          cloudinary.uploader
-            .upload_stream(
-              {
-                folder: 'user_profile_images',
-              },
-              (err, result) => {
-                if (err) return reject(err);
-                resolve(result);
-              }
-            )
-            .end(req.file?.buffer ?? Buffer.alloc(0));
-        });
+        const result = await uploadLocalFileToCloudinary(
+          req.file.path,
+          'users_profile_images'
+        );
+        await fs.promises.unlink(req.file.path);
 
-        user.profileImage = result.secure_url;
-        user.profileImagePublicId = result.public_id;
+        user.profileImage = (result as { secure_url: string }).secure_url;
+        user.profileImagePublicId = (result as { public_id: string }).public_id;
       }
 
       // ✅ Update fields

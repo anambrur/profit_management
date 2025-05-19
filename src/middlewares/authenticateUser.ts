@@ -24,7 +24,6 @@ const authenticateUser = async (
       token,
       envConfig.jwtSecret as string
     ) as UserPayload;
-    console.log(decoded.id);
     req.user = { id: decoded.id };
     next();
   } catch (error) {
