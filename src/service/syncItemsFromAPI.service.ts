@@ -20,7 +20,7 @@ const syncItemsFromAPI = async (storeId: string) => {
     // // 3. Fetch data from API
     const res = await axios({
       method: 'GET',
-      url: 'https://marketplace.walmartapis.com/v3/items',
+      url: 'https://marketplace.walmartapis.com/v3/items?limit=100000',
       headers: {
         'WM_SEC.ACCESS_TOKEN': token,
         'WM_CONSUMER.CHANNEL.TYPE': 'PARTNER',
@@ -29,7 +29,7 @@ const syncItemsFromAPI = async (storeId: string) => {
       },
     });
     const apiItems: Product[] = res.data.ItemResponse;
-
+    console.log(apiItems.length);
 
     // // 4. Existing IDs from DB
     const existingItems = await productModel.find({}, 'sku');
@@ -56,8 +56,6 @@ const syncItemsFromAPI = async (storeId: string) => {
         lifecycleStatus: apiItem.lifecycleStatus,
         isDuplicate: apiItem.isDuplicate,
       }));
-
-    console.log(newItems);
     if (newItems.length === 0) {
       console.log('No new items to insert. All data already exists.');
     } else {
