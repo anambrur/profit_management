@@ -29,7 +29,7 @@ const syncItemsFromAPI = async (storeId: string) => {
       },
     });
     const apiItems: Product[] = res.data.ItemResponse;
-    console.log(apiItems.length);
+
 
     // // 4. Existing IDs from DB
     const existingItems = await productModel.find({}, 'sku');
