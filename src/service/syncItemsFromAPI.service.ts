@@ -1,9 +1,9 @@
-import axios from 'axios';
 import { v4 as uuid } from 'uuid';
 import productModel from '../product/product.model';
 import storeModel from '../store/store.model';
 import { Product } from '../types/types';
 import generateAccessToken from '../utils/generateAccessToken';
+import getAllProducts from '../utils/getAllProducts';
 const syncItemsFromAPI = async (storeId: string) => {
   try {
     // 1. Get store credentials from DB
@@ -16,26 +16,16 @@ const syncItemsFromAPI = async (storeId: string) => {
       store.storeClientId,
       store.storeClientSecret
     );
-
+    console.log(token);
     // // 3. Fetch data from API
-    const res = await axios({
-      method: 'GET',
-      url: 'https://marketplace.walmartapis.com/v3/items?limit=100000',
-      headers: {
-        'WM_SEC.ACCESS_TOKEN': token,
-        'WM_CONSUMER.CHANNEL.TYPE': 'PARTNER',
-        'WM_QOS.CORRELATION_ID': uniqueId,
-        'WM_SVC.NAME': 'Walmart Marketplace',
-      },
-    });
-    const apiItems: Product[] = res.data.ItemResponse;
-
+    const productsData:Product[] = await getAllProducts(token);
+    console.log('Mahin', productsData);
 
     // // 4. Existing IDs from DB
     const existingItems = await productModel.find({}, 'sku');
     const existingIds = new Set(existingItems.map((item) => item.sku));
     // 5. Filter only NEW items
-    const newItems = apiItems
+    const newItems = productsData
       .filter(
         (apiItem: Product) => apiItem.sku && !existingIds.has(apiItem.sku)
       )
@@ -56,6 +46,7 @@ const syncItemsFromAPI = async (storeId: string) => {
         lifecycleStatus: apiItem.lifecycleStatus,
         isDuplicate: apiItem.isDuplicate,
       }));
+
     if (newItems.length === 0) {
       console.log('No new items to insert. All data already exists.');
     } else {
@@ -64,7 +55,7 @@ const syncItemsFromAPI = async (storeId: string) => {
       return result;
     }
   } catch (err) {
-    console.error('Sync Error:', err);
+    // console.error('Sync Error:', err);
   }
 };
 
