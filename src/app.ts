@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import envConfig from './config/envConfig.js';
+import fulfillmentRouter from './fulfillment/fullfillment.route.js';
 import globalError from './middlewares/globalError.js';
 import orderRouter from './order/order.route.js';
 import productRouter from './product/product.routes.js';
@@ -42,6 +43,7 @@ app.use('/api/users', userRouter);
 app.use('/api/stores', storeRouter);
 app.use('/api/products', productRouter);
 app.use('/api/orders', orderRouter);
+app.use('/api/fulfillments', fulfillmentRouter);
 
 // Global Error Handler
 app.use(globalError);
