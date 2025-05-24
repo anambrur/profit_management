@@ -5,7 +5,7 @@ import { Order } from '../types/types';
 import generateAccessToken from '../utils/generateAccessToken';
 import { generateAuthorizationToken } from '../utils/generateAuthorizationToken';
 
-const syncFulfillmentsFromAPI = async (storeId: string) => {
+const syncOrdersFromAPI = async (storeId: string) => {
   try {
     // 1. Get store credentials from DB
     const store = await storeModel.findById(storeId);
@@ -14,20 +14,18 @@ const syncFulfillmentsFromAPI = async (storeId: string) => {
       return null;
     }
 
-    const correlationId = uuid(); // Better variable name for logging/debugging
+    const correlationId = uuid();
 
     // 2. Generate tokens
     const authorizationToken = generateAuthorizationToken(
       store.storeClientId,
       store.storeClientSecret
     );
+
     const accessToken = await generateAccessToken(
       store.storeClientId,
       store.storeClientSecret
     );
-
-    console.log('Authorization Token:', authorizationToken);
-    console.log('Access Token:', accessToken);
 
     // 3. Fetch orders from Walmart Marketplace
     const res = await axios.get(
@@ -35,26 +33,34 @@ const syncFulfillmentsFromAPI = async (storeId: string) => {
       {
         params: {
           limit: 50,
-          offset: 50, // ⛏️ Suggest using 0 instead of 50 unless you want to skip the first 50 orders
+          offset: 0,
         },
         headers: {
           'WM_SEC.ACCESS_TOKEN': accessToken,
-          'WM_CONSUMER.CHANNEL.TYPE': 'PARTNER',
           'WM_QOS.CORRELATION_ID': correlationId,
           'WM_SVC.NAME': 'Walmart Marketplace',
           Authorization: authorizationToken,
         },
       }
     );
+    const apiItems: Order[] = res.data.payload || [];
 
-    const apiItems: Order[] = res.data.ItemResponse || [];
-    console.log(`✅ Synced ${apiItems.length} orders from API`);
-
-    console.log(apiItems);
+    // apiItems.map((item) => {
+    //   return {
+    //     sellerOrderId: item.sellerOrderId,
+    //     status: item.status,
+    //     orderDate: item.orderDate,
+    //     fulfillmentType: item.orderLines[0].fulfillmentType,
+    //     quantity: item.orderedQty.measurementValue,
+    //     productName: item.orderProduct.productName,
+    //     productSKU: item.orderProduct.sku,
+    //   };
+    // });
+    // return apiItems;
   } catch (err: any) {
     console.error('❌ Sync Error:', err?.response?.data || err.message || err);
     return null;
   }
 };
 
-export default syncFulfillmentsFromAPI;
+export default syncOrdersFromAPI;

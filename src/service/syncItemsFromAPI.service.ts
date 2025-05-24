@@ -10,16 +10,12 @@ const syncItemsFromAPI = async (storeId: string) => {
     const store = await storeModel.findById(storeId);
     if (!store) return console.error('Store not found');
 
-    const uniqueId = uuid();
-
     const token = await generateAccessToken(
       store.storeClientId,
       store.storeClientSecret
     );
-    console.log(token);
     // // 3. Fetch data from API
     const productsData:Product[] = await getAllProducts(token);
-    console.log('Mahin', productsData);
 
     // // 4. Existing IDs from DB
     const existingItems = await productModel.find({}, 'sku');
