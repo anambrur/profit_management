@@ -14,6 +14,12 @@ const syncOrdersFromAPI = async (storeId: string) => {
       return null;
     }
 
+    // Add validation for client credentials
+    if (!store.storeClientId || !store.storeClientSecret) {
+      console.error('Store credentials are missing');
+      return null;
+    }
+
     const correlationId = uuid();
 
     // 2. Generate tokens
@@ -46,8 +52,9 @@ const syncOrdersFromAPI = async (storeId: string) => {
     const apiItems: Order[] = res.data.payload || [];
 
     return apiItems;
-  } catch (err: any) {
-    return null;
+  } catch (err) {
+    console.log(err);
+    return err;
   }
 };
 
