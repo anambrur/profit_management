@@ -6,6 +6,7 @@ import cloudinary from '../config/cloudinary';
 import { encrypt } from '../service/encryptionAndDecryption.service';
 import uploadLocalFileToCloudinary from '../service/fileUpload.service';
 import storeModel from './store.model';
+
 export const createStore = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { storeId, storeName, storeEmail, storeClientId, storeClientSecret } =
@@ -32,15 +33,15 @@ export const createStore = expressAsyncHandler(
         profileImagePublicId = (result as { public_id: string }).public_id;
       }
 
-      const encryptedStoreClientId = encrypt(storeClientId);
-      const encryptedStoreClientSecret = encrypt(storeClientSecret);
+      // const encryptedStoreClientId = storeClientId;
+      // const encryptedStoreClientSecret = storeClientSecret;
 
       const newStore = await storeModel.create({
         storeId,
         storeName,
         storeEmail,
-        storeClientId: encryptedStoreClientId,
-        storeClientSecret: encryptedStoreClientSecret,
+        storeClientId,
+        storeClientSecret,
         storeImage: imageUrl,
         storeImagePublicId: profileImagePublicId,
       });
