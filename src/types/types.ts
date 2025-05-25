@@ -25,7 +25,7 @@ export interface Order {
   originSystemOrderId: string;
   orderType: 'DOMESTIC' | 'INTERNATIONAL';
   status: string;
-  orderDate: string; // ISO format date string
+  orderDate: string;
 
   buyerInfo: BuyerInfo;
 

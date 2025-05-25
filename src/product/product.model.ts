@@ -19,6 +19,7 @@ const productSchema = new mongoose.Schema(
     availability: {
       type: String,
     },
+
     wpid: {
       type: String,
     },
@@ -41,6 +42,14 @@ const productSchema = new mongoose.Schema(
     cost_of_price: {
       type: String,
       default: '0',
+    },
+    on_hand: {
+      type: Number,
+      default: 0,
+    },
+    available: {
+      type: Number,
+      default: 0,
     },
     publishedStatus: {
       type: String,
