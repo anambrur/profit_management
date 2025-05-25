@@ -45,20 +45,8 @@ const syncOrdersFromAPI = async (storeId: string) => {
     );
     const apiItems: Order[] = res.data.payload || [];
 
-    // apiItems.map((item) => {
-    //   return {
-    //     sellerOrderId: item.sellerOrderId,
-    //     status: item.status,
-    //     orderDate: item.orderDate,
-    //     fulfillmentType: item.orderLines[0].fulfillmentType,
-    //     quantity: item.orderedQty.measurementValue,
-    //     productName: item.orderProduct.productName,
-    //     productSKU: item.orderProduct.sku,
-    //   };
-    // });
-    // return apiItems;
+    return apiItems;
   } catch (err: any) {
-    console.error('❌ Sync Error:', err?.response?.data || err.message || err);
     return null;
   }
 };
