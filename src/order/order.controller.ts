@@ -1,61 +1,16 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextFunction, Request, Response } from 'express';
 import expressAsyncHandler from 'express-async-handler';
 import syncOrdersFromAPI from '../service/syncOrderFromAPI.service';
+import productModel from '../product/product.model';
+import orderModel from '../order/order.model';
 
 // Transformation function
-// function transformOrdersData(orders: any[]) {
-//   return orders.map((order) => {
-//     // Extract buyer info
-//     const buyerName = order.buyerInfo?.primaryContact?.name;
-//     const buyerAddress = order.orderLines[0]?.shipToAddress?.address;
-
-//     // Transform order lines
-//     const transformedOrderLines = order.orderLines.map((line: any) => ({
-//       lineId: line.lineId,
-//       productName: line.orderProduct?.productName || 'Unknown Product',
-//       sku: line.orderProduct?.sku || 'Unknown SKU',
-//       fulfillmentType: line.fulfillmentType || 'UNKNOWN',
-//       quantity: line.orderedQty?.measurementValue || 1,
-//     }));
-
-//     // Build the transformed order object
-//     return {
-//       sellerOrderId: order.sellerOrderId,
-//       orderType: order.orderType,
-//       status: order.status,
-//       orderDate: order.orderDate,
-//       buyerInfo: {
-//         name: buyerName
-//           ? `${buyerName.firstName} ${buyerName.lastName}`
-//           : 'Unknown Buyer',
-//         address: {
-//           addressLine1: buyerAddress?.addressLineOne || '',
-//           addressLine2: buyerAddress?.addressLineTwo || '',
-//           city: buyerAddress?.city || '',
-//           state: buyerAddress?.stateOrProvinceCode || '',
-//           country: buyerAddress?.countryCode || 'US',
-//           postalCode: buyerAddress?.postalCode || '',
-//         },
-//       },
-//       orderLines: transformedOrderLines,
-//       shipments: order.shipments?.map((shipment: any) => ({
-//         trackingNo: shipment.trackingNo,
-//         carrier: shipment.carrierDescription,
-//         status: shipment.status,
-//         estimatedDelivery: shipment.shipmentDates?.find(
-//           (d: any) => d.dateTypeId === 'DELIVERY'
-//         )?.expectedDate,
-//       })),
-//     };
-//   });
-// }
-
 function transformOrdersData(orders: any[]) {
   return orders.map((order) => {
     const buyerName = order.buyerInfo?.primaryContact?.name;
     const address = order.orderLines[0]?.shipToAddress?.address;
     const primaryShipment = order.shipments?.[0];
-    const firstProduct = order.orderLines?.[0]?.orderProduct;
 
     // Determine status display text
     let statusDisplay = 'Ready to Ship';
@@ -149,17 +104,108 @@ export const getAllOrders = expressAsyncHandler(
         throw result;
       }
 
-      // Transform the Walmart API data to our desired format
       const transformedData = transformOrdersData(result as any[]);
 
+      const failedOrders: any[] = [];
+      const skippedOrders: any[] = [];
+
+      await Promise.all(
+        transformedData.map(async (order: any) => {
+          const simplifiedProducts = [];
+
+          try {
+            // ✅ Check for existing order
+            const existingOrder = await orderModel.findOne({
+              sellerOrderId: order.orderId,
+            });
+
+            if (existingOrder) {
+              // console.info(
+              //   `Order with sellerOrderId ${order.orderId} already exists. Skipping...`
+              // );
+              skippedOrders.push({
+                orderId: order.orderId,
+                reason: 'Duplicate sellerOrderId',
+              });
+              return;
+            }
+
+            for (const product of order.products) {
+              const sku = product.sku?.toString();
+              const quantity = product.quantity || 0;
+
+              if (!sku) {
+                console.warn(`Invalid SKU found in order ${order.orderId}`);
+                continue;
+              }
+
+              try {
+                const storeProduct = await productModel.findOne({ sku });
+
+                if (storeProduct) {
+                  simplifiedProducts.push({
+                    quantity,
+                    productName: storeProduct.productName || '',
+                    productSKU: storeProduct.sku || '',
+                    PurchasePrice: storeProduct.cost_of_price || '0',
+                    sellPrice: storeProduct.price?.amount?.toString() || '0',
+                  });
+                } else {
+                  // console.warn(
+                  //   `Product with SKU ${sku} not found in order ${order.orderId}`
+                  // );
+                }
+              } catch (productErr) {
+                console.error(
+                  `Database error for SKU ${sku} in order ${order.orderId}:`,
+                  productErr
+                );
+              }
+            }
+
+            if (simplifiedProducts.length === 0) {
+              console.warn(
+                `No valid products to save for order ${order.orderId}`
+              );
+              failedOrders.push({
+                orderId: order.orderId,
+                reason: 'No valid products',
+              });
+              return;
+            }
+
+            await orderModel.create({
+              sellerOrderId: order.orderId,
+              status: order.status,
+              orderDate: new Date(order.orderDate),
+              customerName: order.customer,
+              customerAddress: order.location,
+              products: simplifiedProducts,
+            });
+          } catch (orderErr) {
+            console.error(`Error processing order ${order.orderId}:`, orderErr);
+            failedOrders.push({
+              orderId: order.orderId,
+              reason: orderErr.message || 'Unknown error',
+            });
+          }
+        })
+      );
+
       res.status(200).json({
-        data: result,
+        message: 'Orders processed successfully',
         success: true,
-        count: transformedData.length,
+        processedCount: transformedData.length,
+        failedOrders,
+        skippedOrders,
       });
     } catch (error) {
-      console.error('Error fetching orders:', error);
-      next(error);
+      console.error('Error fetching or processing orders:', error);
+      res.status(500).json({
+        message: 'Internal server error while processing orders',
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
     }
   }
 );

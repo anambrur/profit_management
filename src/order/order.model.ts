@@ -12,24 +12,22 @@ const OrderSchema = new mongoose.Schema(
     orderDate: {
       type: Date,
     },
-    fulfillmentType: {
+    customerName: {
       type: String,
     },
-    quantity: {
-      type: Number,
-    },
-    productName: {
+    customerAddress: {
       type: String,
     },
-    productSKU: {
-      type: String,
-    },
-    PurchasePrice: {
-      type: String,
-    },
-    sellPrice: {
-      type: String,
-    },
+
+    products: [
+      {
+        quantity: { type: Number },
+        productName: { type: String },
+        productSKU: { type: String },
+        PurchasePrice: { type: String },
+        sellPrice: { type: String },
+      },
+    ],
   },
   { timestamps: true }
 );
