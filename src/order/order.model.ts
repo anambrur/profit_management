@@ -50,15 +50,27 @@ const OrderSchema: Schema = new Schema(
     customer: {
       type: String,
     },
-    customerAddress: {
-      type: String,
-    },
+
     orderDate: {
       type: Date,
     },
-    products: {
-      type: [ProductSchema],
+
+    customerName: {
+      type: String,
     },
+    customerAddress: {
+      type: String,
+    },
+
+    products: [
+      {
+        quantity: { type: Number },
+        productName: { type: String },
+        productSKU: { type: String },
+        PurchasePrice: { type: String },
+        sellPrice: { type: String },
+      },
+    ],
   },
   { timestamps: true }
 );
