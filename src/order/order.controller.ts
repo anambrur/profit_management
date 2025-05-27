@@ -1,4 +1,3 @@
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextFunction, Request, Response } from 'express';
 import expressAsyncHandler from 'express-async-handler';
@@ -115,7 +114,7 @@ export const getAllOrders = expressAsyncHandler(
           const simplifiedProducts = [];
 
           try {
-            //Check for existing order
+            // ✅ Check for existing order
             const existingOrder = await orderModel.findOne({
               sellerOrderId: order.orderId,
             });
@@ -158,9 +157,9 @@ export const getAllOrders = expressAsyncHandler(
 
                   await storeProduct.save();
                 } else {
-                  // console.warn(
-                  //   `Product with SKU ${sku} not found in order ${order.orderId}`
-                  // );
+                  console.warn(
+                    `Product with SKU ${sku} not found in order ${order.orderId}`
+                  );
                 }
               } catch (productErr) {
                 console.error(
@@ -216,4 +215,3 @@ export const getAllOrders = expressAsyncHandler(
     }
   }
 );
-
