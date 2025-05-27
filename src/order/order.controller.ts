@@ -114,7 +114,7 @@ export const getAllOrders = expressAsyncHandler(
           const simplifiedProducts = [];
 
           try {
-            // ✅ Check for existing order
+            //Check for existing order
             const existingOrder = await orderModel.findOne({
               sellerOrderId: order.orderId,
             });
@@ -157,9 +157,9 @@ export const getAllOrders = expressAsyncHandler(
 
                   await storeProduct.save();
                 } else {
-                  console.warn(
-                    `Product with SKU ${sku} not found in order ${order.orderId}`
-                  );
+                  // console.warn(
+                  //   `Product with SKU ${sku} not found in order ${order.orderId}`
+                  // );
                 }
               } catch (productErr) {
                 console.error(
