@@ -150,10 +150,16 @@ export const getAllOrders = expressAsyncHandler(
                     PurchasePrice: storeProduct.cost_of_price || '0',
                     sellPrice: storeProduct.price?.amount?.toString() || '0',
                   });
+
+                  //Decrease available stock
+                  storeProduct.available =
+                    (storeProduct.available || 0) - quantity;
+
+                  await storeProduct.save();
                 } else {
-                  // console.warn(
-                  //   `Product with SKU ${sku} not found in order ${order.orderId}`
-                  // );
+                  console.warn(
+                    `Product with SKU ${sku} not found in order ${order.orderId}`
+                  );
                 }
               } catch (productErr) {
                 console.error(
