@@ -4,6 +4,8 @@ import storeModel from '../store/store.model';
 import { Order } from '../types/types';
 import generateAccessToken from '../utils/generateAccessToken';
 import { generateAuthorizationToken } from '../utils/generateAuthorizationToken';
+import orderModel from '../order/order.model';
+
 
 const syncOrdersFromAPI = async (storeId: string) => {
   try {
@@ -33,13 +35,15 @@ const syncOrdersFromAPI = async (storeId: string) => {
       store.storeClientSecret
     );
 
+    const orderOffset = await orderModel.countDocuments();
+
     // 3. Fetch orders from Walmart Marketplace
     const res = await axios.get(
       'https://marketplace.walmartapis.com/v3/fulfillment/orders-fulfillments/status',
       {
         params: {
           limit: 50,
-          offset: 0,
+          offset: orderOffset,
         },
         headers: {
           'WM_SEC.ACCESS_TOKEN': accessToken,
