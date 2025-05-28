@@ -1,6 +1,9 @@
 import { NextFunction, Request, Response } from 'express';
 import expressAsyncHandler from 'express-async-handler';
+import createHttpError from 'http-errors';
+import orderModel from '../order/order.model';
 import syncItemsFromAPI from '../service/syncItemsFromAPI.service';
+import productModel from './product.model';
 
 export const getAllProducts = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -8,6 +11,142 @@ export const getAllProducts = expressAsyncHandler(
     try {
       const data = await syncItemsFromAPI(id);
       res.status(200).json({ data, success: true });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+export const updateProduct = expressAsyncHandler(
+  // @ts-ignore
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { price, sellPrice, costOfPrice } = req.body;
+
+      // Update the product with the new prices
+      const product = await productModel.findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            price,
+            sellPrice,
+            costOfPrice,
+          },
+        },
+        { new: true }
+      );
+
+      if (!product) {
+        return res.status(404).json({
+          success: false,
+          message: 'Product not found',
+        });
+      }
+
+      // Find all orders that contain this product
+      const orders = await orderModel.find({
+        'products.productSKU': product.sku,
+      });
+
+      // If you want to update prices in orders as well, you would do it here
+      if (orders.length > 0) {
+        // Example: Update all order items with this product's SKU
+        await orderModel.updateMany(
+          { 'products.productSKU': product.sku },
+          {
+            $set: {
+              'products.$[elem].PurchasePrice': costOfPrice,
+              'products.$[elem].sellPrice': sellPrice,
+            },
+          },
+          {
+            arrayFilters: [{ 'elem.productSKU': product.sku }],
+          }
+        );
+      }
+
+      return res.status(200).json({
+        success: true,
+        product,
+        updatedOrdersCount: orders.length,
+        message: 'Product and related orders updated successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+export const getSingleProduct = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const id = req.params.id;
+    try {
+      const product = await productModel.findById(id);
+      if (!product) {
+        return next(createHttpError(404, 'Product not found'));
+      }
+      res.status(200).json({ product, success: true });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+export const updateSingleProductHistory = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { quantity, costOfPrice, email, date, sellPrice } = req.body;
+
+      // Find the product
+      const product = await productModel.findById(id);
+      if (!product) {
+        return next(createHttpError(404, 'Product not found'));
+      }
+
+      // Prepare update data
+      const updateData = {
+        quantity: quantity ?? 0,
+        costOfPrice: costOfPrice ?? 0,
+        sellPrice: sellPrice ?? product.purchaseHistory[0]?.sellPrice ?? 0,
+        date: date ? new Date(date) : new Date(),
+        email: email ?? '',
+      };
+
+      let updateOperation;
+
+      if (
+        product.purchaseHistory.length === 1 &&
+        product.purchaseHistory[0].quantity === 0 &&
+        product.purchaseHistory[0].costOfPrice === 0
+      ) {
+        // First update - modify the default empty object
+        updateOperation = {
+          $set: {
+            'purchaseHistory.0': updateData,
+          },
+        };
+      } else {
+        // Subsequent updates - push new object
+        updateOperation = {
+          $push: {
+            purchaseHistory: updateData,
+          },
+        };
+      }
+
+      const updatedProduct = await productModel.findByIdAndUpdate(
+        id,
+        updateOperation,
+        { new: true }
+      );
+
+      res.status(200).json({
+        message: 'Purchase history updated successfully',
+        success: true,
+        product: updatedProduct,
+      });
     } catch (error) {
       next(error);
     }

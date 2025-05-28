@@ -1,4 +1,3 @@
-import { v4 as uuid } from 'uuid';
 import productModel from '../product/product.model';
 import storeModel from '../store/store.model';
 import { Product } from '../types/types';
@@ -15,7 +14,7 @@ const syncItemsFromAPI = async (storeId: string) => {
       store.storeClientSecret
     );
     // // 3. Fetch data from API
-    const productsData:Product[] = await getAllProducts(token);
+    const productsData: Product[] = await getAllProducts(token);
 
     // // 4. Existing IDs from DB
     const existingItems = await productModel.find({}, 'sku');
@@ -35,12 +34,19 @@ const syncItemsFromAPI = async (storeId: string) => {
         upc: apiItem.upc,
         gtin: apiItem.gtin,
         productName: apiItem.productName,
-        shelf: apiItem.shelf,
         productType: apiItem.productType,
-        price: apiItem.price,
         publishedStatus: apiItem.publishedStatus,
         lifecycleStatus: apiItem.lifecycleStatus,
-        isDuplicate: apiItem.isDuplicate,
+        storeRef: store._id,
+        purchaseHistory: [
+          {
+            quantity: 0,
+            costOfPrice: 0,
+            sellPrice: apiItem.price?.amount,
+            date: '',
+            email: '',
+          },
+        ],
       }));
 
     if (newItems.length === 0) {
@@ -51,7 +57,7 @@ const syncItemsFromAPI = async (storeId: string) => {
       return result;
     }
   } catch (err) {
-    // console.error('Sync Error:', err);
+    console.error('Sync Error:', err);
   }
 };
 
