@@ -1,17 +1,16 @@
 import mongoose from 'mongoose';
 
-const priceSchema = new mongoose.Schema({
-  currency: { type: String },
-  amount: { type: Number },
-});
-
 const productSchema = new mongoose.Schema(
   {
     mart: {
       type: String,
+      trim: true,
     },
     sku: {
       type: String,
+      required: true,
+      unique: true,
+      trim: true,
     },
     condition: {
       type: String,
@@ -19,31 +18,28 @@ const productSchema = new mongoose.Schema(
     availability: {
       type: String,
     },
-
     wpid: {
       type: String,
+      trim: true,
     },
     upc: {
       type: String,
+      trim: true,
     },
     gtin: {
       type: String,
+      trim: true,
     },
     productName: {
       type: String,
+      required: true,
+      trim: true,
     },
-    shelf: [{ type: String }],
     productType: {
       type: String,
+      trim: true,
     },
-    price: {
-      type: priceSchema,
-    },
-    cost_of_price: {
-      type: String,
-      default: '0',
-    },
-    on_hand: {
+    onHand: {
       type: Number,
       default: 0,
     },
@@ -57,20 +53,47 @@ const productSchema = new mongoose.Schema(
     lifecycleStatus: {
       type: String,
     },
-    isDuplicate: {
-      type: Boolean,
-      default: false,
-    },
     storeID: {
       type: String,
-      required: true,
     },
     storeRef: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Store',
+      type: String,
+    },
+    purchaseHistory: {
+      type: [
+        {
+          quantity: {
+            type: Number,
+            default: 0,
+          },
+          costOfPrice: {
+            type: Number,
+            default: 0,
+          },
+          sellPrice: {
+            type: Number,
+            default: 0,
+          },
+          date: {
+            type: Date,
+            default: Date.now,
+          },
+          email: {
+            type: String,
+            trim: true,
+            lowercase: true,
+          },
+        },
+      ],
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
-export default mongoose.model('Product', productSchema);
+const Product = mongoose.model('Product', productSchema);
+
+export default Product;

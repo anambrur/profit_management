@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextFunction, Request, Response } from 'express';
 import expressAsyncHandler from 'express-async-handler';
-import syncOrdersFromAPI from '../service/syncOrderFromAPI.service';
-import productModel from '../product/product.model';
 import orderModel from '../order/order.model';
+import productModel from '../product/product.model';
+import syncOrdersFromAPI from '../service/syncOrderFromAPI.service';
 
 // Transformation function
 function transformOrdersData(orders: any[]) {
@@ -147,8 +147,8 @@ export const getAllOrders = expressAsyncHandler(
                     quantity,
                     productName: storeProduct.productName || '',
                     productSKU: storeProduct.sku || '',
-                    PurchasePrice: storeProduct.cost_of_price || '0',
-                    sellPrice: storeProduct.price?.amount?.toString() || '0',
+                    PurchasePrice: storeProduct.costOfPrice || '0',
+                    sellPrice: storeProduct.sellPrice?.toString() || '0',
                   });
 
                   //Decrease available stock
@@ -188,7 +188,7 @@ export const getAllOrders = expressAsyncHandler(
               customerAddress: order.location,
               products: simplifiedProducts,
             });
-          } catch (orderErr) {
+          } catch (orderErr: any) {
             console.error(`Error processing order ${order.orderId}:`, orderErr);
             failedOrders.push({
               orderId: order.orderId,
@@ -215,4 +215,3 @@ export const getAllOrders = expressAsyncHandler(
     }
   }
 );
-
