@@ -8,11 +8,29 @@ import productModel from './product.model';
 export const getAllProducts = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const id = req.params.id;
+
+    if (!id) {
+      return next(createHttpError(400, 'Store ID is required'));
+    }
+
     try {
       const data = await syncItemsFromAPI(id);
-      res.status(200).json({ data, success: true });
+
+      if (!data) {
+        return next(
+          createHttpError(404, 'No products found or no new products to sync')
+        );
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Products synchronized successfully',
+        data,
+        count: data.length,
+      });
     } catch (error) {
-      next(error);
+      console.error('Product synchronization failed:', error);
+      next(createHttpError(500, 'Failed to synchronize products'));
     }
   }
 );
@@ -93,7 +111,7 @@ export const getSingleProduct = expressAsyncHandler(
   }
 );
 
-export const updateSingleProductHistory = expressAsyncHandler(
+export const addSingleProductHistory = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
