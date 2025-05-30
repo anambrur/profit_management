@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextFunction, Request, Response } from 'express';
 import expressAsyncHandler from 'express-async-handler';
-import orderModel from '../order/order.model';
+import orderModel from './order.model';
 import productModel from '../product/product.model';
 import syncOrdersFromAPI from '../service/syncOrderFromAPI.service';
 
@@ -90,8 +90,8 @@ export const getAllOrders = expressAsyncHandler(
     }
 
     try {
+      // 1. Fetch orders from API
       const result = await syncOrdersFromAPI(id);
-
       if (!result) {
         res.status(404).json({
           message: 'Store not found or credentials missing',
@@ -99,109 +99,146 @@ export const getAllOrders = expressAsyncHandler(
         });
         return;
       }
+      if (result instanceof Error) throw result;
 
-      if (result instanceof Error) {
-        throw result;
-      }
-
+      // 2. Transform data (CPU-bound, but relatively fast)
       const transformedData = transformOrdersData(result as any[]);
 
+      
+
+      // 3. Prepare for batch processing
+      const stockedAlerts: any[] = [];
       const failedOrders: any[] = [];
       const skippedOrders: any[] = [];
+      const ordersToCreate: any[] = [];
+      const productsToUpdate = new Map<string, any>();
 
-      await Promise.all(
-        transformedData.map(async (order: any) => {
-          const simplifiedProducts = [];
-
-          try {
-            // ✅ Check for existing order
-            const existingOrder = await orderModel.findOne({
-              sellerOrderId: order.orderId,
-            });
-
-            if (existingOrder) {
-              // console.info(
-              //   `Order with sellerOrderId ${order.orderId} already exists. Skipping...`
-              // );
-              skippedOrders.push({
-                orderId: order.orderId,
-                reason: 'Duplicate sellerOrderId',
-              });
-              return;
-            }
-
-            for (const product of order.products) {
-              const sku = product.sku?.toString();
-              const quantity = product.quantity || 0;
-
-              if (!sku) {
-                console.warn(`Invalid SKU found in order ${order.orderId}`);
-                continue;
-              }
-
-              try {
-                const storeProduct = await productModel.findOne({ sku });
-
-                if (storeProduct) {
-                  simplifiedProducts.push({
-                    quantity,
-                    productName: storeProduct.productName || '',
-                    productSKU: storeProduct.sku || '',
-                    PurchasePrice: storeProduct.costOfPrice || '0',
-                    sellPrice: storeProduct.sellPrice?.toString() || '0',
-                  });
-
-                  //Decrease available stock
-                  storeProduct.available =
-                    (storeProduct.available || 0) - quantity;
-
-                  await storeProduct.save();
-                } else {
-                  console.warn(
-                    `Product with SKU ${sku} not found in order ${order.orderId}`
-                  );
-                }
-              } catch (productErr) {
-                console.error(
-                  `Database error for SKU ${sku} in order ${order.orderId}:`,
-                  productErr
-                );
-              }
-            }
-
-            if (simplifiedProducts.length === 0) {
-              console.warn(
-                `No valid products to save for order ${order.orderId}`
-              );
-              failedOrders.push({
-                orderId: order.orderId,
-                reason: 'No valid products',
-              });
-              return;
-            }
-
-            await orderModel.create({
-              sellerOrderId: order.orderId,
-              status: order.status,
-              orderDate: new Date(order.orderDate),
-              customerName: order.customer,
-              customerAddress: order.location,
-              products: simplifiedProducts,
-            });
-          } catch (orderErr: any) {
-            console.error(`Error processing order ${order.orderId}:`, orderErr);
-            failedOrders.push({
-              orderId: order.orderId,
-              reason: orderErr.message || 'Unknown error',
-            });
-          }
+      // 4. First pass: Check for existing orders (batch query)
+      const orderIds = transformedData.map((order) => order.orderId);
+      const existingOrders = await orderModel
+        .find({
+          sellerOrderId: { $in: orderIds },
         })
+        .select('sellerOrderId')
+        .lean();
+
+      const existingOrderIds = new Set(
+        existingOrders.map((o) => o.sellerOrderId)
       );
 
+      // 5. Process orders in optimized batches
+      for (const order of transformedData) {
+        if (existingOrderIds.has(order.orderId)) {
+          skippedOrders.push({
+            orderId: order.orderId,
+            reason: 'Duplicate sellerOrderId',
+          });
+          continue;
+        }
+
+        const simplifiedProducts = [];
+        let hasValidProducts = false;
+
+        for (const product of order.products) {
+          const sku = product.sku?.toString();
+          if (!sku) continue;
+
+          let remainingQuantity = product.quantity || 0;
+          if (remainingQuantity <= 0) continue;
+
+          // Get or load product
+          let storeProduct = productsToUpdate.get(sku);
+          if (!storeProduct) {
+            storeProduct = await productModel.findOne({ sku });
+            if (storeProduct) productsToUpdate.set(sku, storeProduct);
+          }
+
+          if (!storeProduct) {
+            // failedOrders.push({
+            //   orderId: order.orderId,
+            //   sku,
+            //   reason: 'Product not found',
+            // });
+            continue;
+          }
+
+          // Process inventory
+          const sortedHistory = [...storeProduct.purchaseHistory].sort(
+            (a, b) => {
+              if (a.costOfPrice === b.costOfPrice) {
+                return new Date(a.date).getTime() - new Date(b.date).getTime();
+              }
+              return a.costOfPrice - b.costOfPrice;
+            }
+          );
+
+          for (const history of sortedHistory) {
+            if (remainingQuantity <= 0) break;
+
+            const quantityToUse = Math.min(history.quantity, remainingQuantity);
+            if (quantityToUse <= 0) continue;
+
+            simplifiedProducts.push({
+              quantity: quantityToUse,
+              productName: storeProduct.productName || '',
+              productSKU: storeProduct.sku || '',
+              PurchasePrice: history.costOfPrice.toString(),
+              sellPrice: history.sellPrice.toString(),
+              purchaseHistoryId: history._id,
+            });
+
+            history.quantity -= quantityToUse;
+            remainingQuantity -= quantityToUse;
+            hasValidProducts = true;
+          }
+
+          if (remainingQuantity > 0) {
+            stockedAlerts.push({
+              orderId: order.orderId,
+              sku,
+              reason: `Insufficient stock (${remainingQuantity} remaining)`,
+            });
+          }
+        }
+
+        if (hasValidProducts) {
+          ordersToCreate.push({
+            sellerOrderId: order.orderId,
+            status: order.status,
+            orderDate: new Date(order.orderDate),
+            customerName: order.customer,
+            customerAddress: order.location,
+            products: simplifiedProducts,
+          });
+        } else if (order.products.length > 0) {
+          failedOrders.push({
+            orderId: order.orderId,
+            reason: 'No valid products',
+          });
+        }
+      }
+
+      // 6. Batch updates - do all database operations in parallel
+      await Promise.all([
+        // Create all orders in one batch
+        orderModel.insertMany(ordersToCreate),
+
+        // Update all products in one batch
+        ...Array.from(productsToUpdate.values()).map((product) => {
+          product.available = product.purchaseHistory.reduce(
+            (sum: number, item: any) => sum + item.quantity,
+            0
+          );
+          return product.save();
+        }),
+      ]);
+
+      // 7. Send response
       res.status(200).json({
         message: 'Orders processed successfully',
         success: true,
-        processedCount: transformedData.length,
+        processedCount: ordersToCreate.length,
+        stockedAlerts,
         failedOrders,
         skippedOrders,
       });
