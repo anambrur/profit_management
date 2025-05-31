@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const OrderSchema = new mongoose.Schema(
   {
-    sellerOrderId: {
+    customerOrderId: {
       type: String,
       required: true,
       unique: true,
@@ -26,12 +26,14 @@ const OrderSchema = new mongoose.Schema(
       {
         quantity: { type: Number },
         productName: { type: String },
+        imageUrl: { type: String },
         productSKU: {
           type: String,
           index: true,
         },
         PurchasePrice: { type: String },
         sellPrice: { type: String },
+        tax: { type: String },
       },
     ],
   },
