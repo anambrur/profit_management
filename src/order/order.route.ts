@@ -3,6 +3,18 @@ import { getAllOrders } from './order.controller';
 
 const orderRouter = Router();
 
-orderRouter.route('/get-all-orders/:id').get(getAllOrders);
+orderRouter.route('/get-all-orders').get(getAllOrders);
 
 export default orderRouter;
+
+
+
+
+
+
+
+
+
+
+
+

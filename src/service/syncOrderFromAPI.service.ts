@@ -1,64 +1,75 @@
 import axios from 'axios';
 import { v4 as uuid } from 'uuid';
-import storeModel from '../store/store.model';
 import { Order } from '../types/types';
 import generateAccessToken from '../utils/generateAccessToken';
-import { generateAuthorizationToken } from '../utils/generateAuthorizationToken';
-import orderModel from '../order/order.model';
 
-
-const syncOrdersFromAPI = async (storeId: string) => {
+const syncOrdersFromAPI = async (
+  storeId: string,
+  storeClientId: string,
+  storeClientSecret: string
+) => {
   try {
-    // 1. Get store credentials from DB
-    const store = await storeModel.findById(storeId);
-    if (!store) {
-      console.error('Store not found');
-      return null;
-    }
-
-    // Add validation for client credentials
-    if (!store.storeClientId || !store.storeClientSecret) {
-      console.error('Store credentials are missing');
-      return null;
-    }
-
     const correlationId = uuid();
+    // console.log(`Starting sync for store ${storeId}`);
 
-    // 2. Generate tokens
-    const authorizationToken = generateAuthorizationToken(
-      store.storeClientId,
-      store.storeClientSecret
-    );
+    // 1. Generate Access Token
+    const accessToken = await generateAccessToken(storeClientId, storeClientSecret);
+    if (!accessToken) {
+      throw new Error('Failed to generate access token');
+    }
 
-    const accessToken = await generateAccessToken(
-      store.storeClientId,
-      store.storeClientSecret
-    );
+    const allOrders: Order[] = [];
+    const shipNodeTypes = ['SellerFulfilled', 'WFSFulfilled', '3PLFulfilled'];
 
-    const orderOffset = await orderModel.countDocuments();
+    for (const shipNodeType of shipNodeTypes) {
+      try {
+        // console.log(`Fetching ${shipNodeType} orders for store ${storeId}`);
+        
+        const response = await axios.get(
+          'https://marketplace.walmartapis.com/v3/orders',
+          {
+            params: {
+              createdStartDate: '2023-01-01',
+              limit: 100,
+              shipNodeType: shipNodeType,
+              replacementInfo: false,
+              productInfo: true,
+            },
+            headers: {
+              'WM_SEC.ACCESS_TOKEN': accessToken,
+              'WM_QOS.CORRELATION_ID': correlationId,
+              'WM_SVC.NAME': 'Walmart Marketplace',
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            timeout: 10000, // 10 second timeout
+          }
+        );
 
-    // 3. Fetch orders from Walmart Marketplace
-    const res = await axios.get(
-      'https://marketplace.walmartapis.com/v3/fulfillment/orders-fulfillments/status',
-      {
-        params: {
-          limit: 50,
-          offset: orderOffset,
-        },
-        headers: {
-          'WM_SEC.ACCESS_TOKEN': accessToken,
-          'WM_QOS.CORRELATION_ID': correlationId,
-          'WM_SVC.NAME': 'Walmart Marketplace',
-          Authorization: authorizationToken,
-        },
+        console.log(`API Response Status: ${response.status}`);
+
+        if (response.data?.list?.elements?.order) {
+          response.data.list.elements.order.forEach((order: any) => {
+            allOrders.push({
+              ...order,
+              storeId: storeId,
+              shipNodeType: shipNodeType,
+            });
+          });
+        }
+      } catch (error: any) {
+        console.error(
+          `Failed to fetch ${shipNodeType} orders for store ${storeId}:`,
+          error.response?.data || error.message
+        );
+        continue;
       }
-    );
-    const apiItems: Order[] = res.data.payload || [];
+    }
 
-    return apiItems;
-  } catch (err) {
-    console.log(err);
-    return err;
+    return allOrders;
+  } catch (err: any) {
+    console.error(`Error processing store ${storeId}:`, err.response?.data || err.message);
+    throw err;
   }
 };
 
