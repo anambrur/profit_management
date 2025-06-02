@@ -1,7 +1,6 @@
 // order.controller.ts
 import { NextFunction, Request, Response } from 'express';
 import expressAsyncHandler from 'express-async-handler';
-import orderModel from './order.model';
 import syncOrdersFromAPI from '../service/syncOrderFromAPI.service';
 import storeModel from '../store/store.model';
 import transformOrdersData from '../service/orderFormator.service';
