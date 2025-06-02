@@ -150,6 +150,8 @@ async function transformOrdersData(orders: any[]) {
           : 'Unknown';
 
       ordersToCreate.push({
+        storeId: order.storeId,
+        shipNodeType: order.shipNodeType,
         customerOrderId: order.customerOrderId,
         status: currentStatus,
         orderDate: new Date(order.orderDate),

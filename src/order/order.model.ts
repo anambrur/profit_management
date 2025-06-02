@@ -2,6 +2,15 @@ import mongoose from 'mongoose';
 
 const OrderSchema = new mongoose.Schema(
   {
+    storeId: {
+      type: String,
+      required: true,
+      index: true,
+    },
+    shipNodeType: {
+      type: String,
+      index: true,
+    },
     customerOrderId: {
       type: String,
       required: true,
