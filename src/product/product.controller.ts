@@ -4,34 +4,47 @@ import createHttpError from 'http-errors';
 import orderModel from '../order/order.model';
 import syncItemsFromAPI from '../service/syncItemsFromAPI.service';
 import productModel from './product.model';
+import storeModel from '../store/store.model';
 
 export const getAllProducts = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const id = req.params.id;
-
-    if (!id) {
-      return next(createHttpError(400, 'Store ID is required'));
-    }
-
     try {
-      const data = await syncItemsFromAPI(id);
+      const stores = await storeModel.find({ storeStatus: 'active' });
 
-      if (!data) {
-        return next(
-          createHttpError(404, 'No products found or no new products to sync')
-        );
-      }
+      // Step 1: Fetch orders from all active stores
+      for (const store of stores) {
+        try {
+          const data = await syncItemsFromAPI(
+            store.storeId,
+            store.storeClientId,
+            store.storeClientSecret
+          );
 
-      res.status(200).json({
-        success: true,
-        message: 'Products synchronized successfully',
-        data,
-        count: data.length,
-      });
+          if (!data) {
+            return next(
+              createHttpError(
+                404,
+                'No products found or no new products to sync'
+              )
+            );
+          }
+
+          res.status(200).json({
+            success: true,
+            message: 'Products synchronized successfully',
+            data,
+            count: data.length,
+          });
+          // allStoreOrders.push(...data);
+        } catch (error) {
+          console.error(`Error syncing products for store ${store.storeId}:`);
+          continue;
+        }
+      } 
     } catch (error) {
       console.error('Product synchronization failed:', error);
       next(createHttpError(500, 'Failed to synchronize products'));
-    }
+    } 
   }
 );
 

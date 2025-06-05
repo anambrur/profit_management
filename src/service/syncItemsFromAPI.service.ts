@@ -4,27 +4,18 @@ import { Product } from '../types/types';
 import generateAccessToken from '../utils/generateAccessToken';
 import getAllProducts from '../utils/getAllProducts';
 
-const syncItemsFromAPI = async (storeId: string) => {
+const syncItemsFromAPI = async (
+  storeId: string,
+  storeClientId: string,
+  storeClientSecret: string
+) => {
   if (!storeId) {
     throw new Error('Store ID is required');
   }
 
   try {
-    // 1. Get store credentials from DB
-    const store = await storeModel.findById(storeId);
-    if (!store) {
-      throw new Error('Store not found in database');
-    }
-
-    if (!store.storeClientId || !store.storeClientSecret) {
-      throw new Error('Store credentials are incomplete');
-    }
-
     // 2. Generate access token
-    const token = await generateAccessToken(
-      store.storeClientId,
-      store.storeClientSecret
-    );
+    const token = await generateAccessToken(storeClientId, storeClientSecret);
 
     if (!token) {
       throw new Error('Failed to generate access token');
@@ -51,7 +42,7 @@ const syncItemsFromAPI = async (storeId: string) => {
         return !existingIds.has(apiItem.sku);
       })
       .map((apiItem: Product) => ({
-        storeID: store.storeId,
+        storeID: storeId,
         mart: apiItem.mart,
         sku: apiItem.sku,
         condition: apiItem.condition,
@@ -63,7 +54,7 @@ const syncItemsFromAPI = async (storeId: string) => {
         productType: apiItem.productType,
         publishedStatus: apiItem.publishedStatus,
         lifecycleStatus: apiItem.lifecycleStatus,
-        storeRef: store._id,
+        // storeRef: apiItem.storeRef,
         purchaseHistory: [
           {
             quantity: 0,

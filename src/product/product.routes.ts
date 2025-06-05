@@ -7,7 +7,7 @@ import {
 
 const productRouter = Router();
 
-productRouter.route('/get-all-products/:id').get(getAllProducts);
+productRouter.route('/get-all-products').get(getAllProducts);
 productRouter.route('/update-product/:id').put(updateProduct);
 productRouter
   .route('/add-single-product-history/:id')
