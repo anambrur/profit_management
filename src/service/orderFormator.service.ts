@@ -121,6 +121,10 @@ async function transformOrdersData(orders: any[]) {
             line.charges?.charge
               ?.find((c: any) => c.chargeType === 'PRODUCT')
               ?.tax?.taxAmount?.amount?.toString() || '0',
+          shipping:
+            line.charges?.charge
+              ?.find((c: any) => c.chargeType === 'SHIPPING')
+              ?.chargeAmount?.amount?.toString() || '0',
         });
       }
 

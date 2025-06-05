@@ -43,6 +43,7 @@ const OrderSchema = new mongoose.Schema(
         PurchasePrice: { type: String },
         sellPrice: { type: String },
         tax: { type: String },
+        shipping: { type: String },
       },
     ],
   },
