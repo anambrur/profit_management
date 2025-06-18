@@ -1,5 +1,5 @@
 import productModel from '../product/product.model';
-import storeModel from '../store/store.model';
+import productHistoryModel from '../productHistory/productHistory.model';
 import { Product } from '../types/types';
 import generateAccessToken from '../utils/generateAccessToken';
 import getAllProducts from '../utils/getAllProducts';
@@ -14,69 +14,77 @@ const syncItemsFromAPI = async (
   }
 
   try {
-    // 2. Generate access token
+    // 1. Generate access token
     const token = await generateAccessToken(storeClientId, storeClientSecret);
-
     if (!token) {
       throw new Error('Failed to generate access token');
     }
 
-    // 3. Fetch data from API
+    // 2. Fetch data from API
     const productsData: Product[] = await getAllProducts(token);
-
     if (!productsData || !Array.isArray(productsData)) {
       throw new Error('Invalid products data received from API');
     }
 
-    // 4. Get existing IDs from DB
+    // 3. Get existing SKUs from DB
     const existingItems = await productModel.find({}, 'sku');
     const existingIds = new Set(existingItems.map((item) => item.sku));
 
-    // 5. Filter only NEW items
-    const newItems = productsData
-      .filter((apiItem: Product) => {
-        if (!apiItem.sku) {
-          console.warn('Product missing SKU:', apiItem.productName);
-          return false;
-        }
-        return !existingIds.has(apiItem.sku);
-      })
-      .map((apiItem: Product) => ({
-        storeID: storeId,
-        mart: apiItem.mart,
-        sku: apiItem.sku,
-        condition: apiItem.condition,
-        availability: apiItem.availability,
-        wpid: apiItem.wpid,
-        upc: apiItem.upc,
-        gtin: apiItem.gtin,
-        productName: apiItem.productName,
-        productType: apiItem.productType,
-        publishedStatus: apiItem.publishedStatus,
-        lifecycleStatus: apiItem.lifecycleStatus,
-        // storeRef: apiItem.storeRef,
-        purchaseHistory: [
-          {
-            quantity: 0,
-            costOfPrice: 0,
-            sellPrice: apiItem.price?.amount || 0,
-            date: new Date().toISOString(),
-            email: '',
-          },
-        ],
-      }));
+    // 4. Filter new items only
+    const filteredItems = productsData.filter((apiItem: Product) => {
+      if (!apiItem.sku) {
+        console.warn('Product missing SKU:', apiItem.productName);
+        return false;
+      }
+      return !existingIds.has(apiItem.sku);
+    });
 
-    if (newItems.length === 0) {
+    if (filteredItems.length === 0) {
       console.log('No new items to insert. All data already exists.');
-      return []; // Return empty array for consistency
+      return [];
     }
 
-    const result = await productModel.insertMany(newItems);
-    console.log(`Inserted ${result.length} new items`);
-    return result;
+    const newProducts = filteredItems.map((apiItem: Product) => ({
+      mart: apiItem.mart,
+      sku: apiItem.sku,
+      condition: apiItem.condition,
+      availability: apiItem.availability,
+      wpid: apiItem.wpid,
+      upc: apiItem.upc,
+      gtin: apiItem.gtin,
+      productName: apiItem.productName,
+      productType: apiItem.productType,
+      publishedStatus: apiItem.publishedStatus,
+      lifecycleStatus: apiItem.lifecycleStatus,
+    }));
+
+    // 5. Insert into productModel
+    const insertedProducts = await productModel.insertMany(newProducts);
+    console.log(`✅ Inserted ${insertedProducts.length} new products`);
+
+    // 6. Prepare product history records using inserted ObjectIds
+    const purchaseHistoryItems = insertedProducts.map((product, index) => ({
+      productId: product._id, // <-- This is the actual ObjectId
+      storeID: storeId,
+      quantity: 0,
+      costOfPrice: 0,
+      sellPrice: filteredItems[index]?.price?.amount || 0,
+      totalPrice: 0,
+      email: '',
+      card: '',
+      supplier: '',
+    }));
+
+    // 7. Insert into productHistoryModel
+    await productHistoryModel.insertMany(purchaseHistoryItems);
+    console.log(
+      `📦 Created ${purchaseHistoryItems.length} product history records`
+    );
+
+    return insertedProducts;
   } catch (err) {
-    console.error('Sync Error:', err);
-    throw err; // Re-throw to be caught by the controller
+    console.error('❌ Sync Error:', err);
+    throw err;
   }
 };
 

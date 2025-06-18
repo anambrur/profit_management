@@ -1,9 +1,9 @@
 // order.controller.ts
 import { NextFunction, Request, Response } from 'express';
 import expressAsyncHandler from 'express-async-handler';
+import transformOrdersData from '../service/orderFormator.service';
 import syncOrdersFromAPI from '../service/syncOrderFromAPI.service';
 import storeModel from '../store/store.model';
-import transformOrdersData from '../service/orderFormator.service';
 
 export const getAllOrders = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -34,19 +34,15 @@ export const getAllOrders = expressAsyncHandler(
             stockedAlerts: [],
             failedOrders: [],
             skippedOrders: [],
-            createdOrders: []
-          }
+            createdOrders: [],
+          },
         });
         return;
       }
 
       // Step 2: Transform and process orders
-      const {
-        stockedAlerts,
-        failedOrders,
-        skippedOrders,
-        createdOrders
-      } = await transformOrdersData(allStoreOrders);
+      const { stockedAlerts, failedOrders, skippedOrders, createdOrders } =
+        await transformOrdersData(allStoreOrders);
 
       // Step 3: Prepare response
       const response = {
@@ -57,27 +53,28 @@ export const getAllOrders = expressAsyncHandler(
           created: createdOrders.length,
           skipped: skippedOrders.length,
           failed: failedOrders.length,
-          stockAlerts: stockedAlerts.length
+          stockAlerts: stockedAlerts.length,
         },
         details: {
           stockedAlerts,
           failedOrders,
           skippedOrders,
-          createdOrders
-        }
+          createdOrders,
+        },
       };
 
       res.status(200).json(response);
-
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in getAllOrders:', error);
       res.status(500).json({
         message: error.response?.data?.message || 'Failed to process orders',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        error:
+          process.env.NODE_ENV === 'development' ? error.message : undefined,
         stack: process.env.NODE_ENV === 'development' ? error.stack : null,
         success: false,
-        status: 500
+        status: 500,
       });
     }
   }
 );
+

@@ -5,7 +5,7 @@ const productSchema = new mongoose.Schema(
     mart: {
       type: String,
       trim: true,
-      index: true,  // For filtering by mart
+      index: true, // For filtering by mart
     },
     sku: {
       type: String,
@@ -15,91 +15,59 @@ const productSchema = new mongoose.Schema(
     },
     condition: {
       type: String,
-      index: true,  // For filtering by condition
+      index: true, // For filtering by condition
     },
     availability: {
       type: String,
-      index: true,  // For inventory status checks
+      index: true, // For inventory status checks
     },
     wpid: {
       type: String,
       trim: true,
-      index: true,  // Alternative identifier
+      index: true, // Alternative identifier
     },
     upc: {
       type: String,
       trim: true,
-      index: true,  // For barcode lookups
+      index: true, // For barcode lookups
     },
     gtin: {
       type: String,
       trim: true,
-      index: true,  // For global trade lookups
+      index: true, // For global trade lookups
     },
     productName: {
       type: String,
       required: true,
       trim: true,
-      index: 'text',  // For text search
+      index: 'text', // For text search
     },
     productType: {
       type: String,
       trim: true,
-      index: true,  // For product categorization
+      index: true, // For product categorization
     },
     onHand: {
       type: Number,
       default: 0,
-      index: true,  // For inventory level queries
+      index: true, // For inventory level queries
     },
     available: {
       type: Number,
       default: 0,
-      index: true,  // Critical for stock availability
+      index: true, // Critical for stock availability
     },
     publishedStatus: {
       type: String,
-      index: true,  // For published/unpublished filters
+      index: true, // For published/unpublished filters
     },
     lifecycleStatus: {
       type: String,
-      index: true,  // For product lifecycle management
-    },
-    storeID: {
-      type: String,
-      index: true,  // For multi-store setups
+      index: true, // For product lifecycle management
     },
     storeRef: {
       type: String,
-      index: true,  // Alternative store reference
-    },
-    purchaseHistory: {
-      type: [
-        {
-          quantity: {
-            type: Number,
-            default: 0,
-          },
-          costOfPrice: {
-            type: Number,
-            default: 0,
-          },
-          sellPrice: {
-            type: Number,
-            default: 0,
-          },
-          date: {
-            type: Date,
-            default: Date.now,
-            index: true,  // For purchase date analysis
-          },
-          email: {
-            type: String,
-            trim: true,
-            lowercase: true,
-          },
-        },
-      ],
+      index: true, // Alternative store reference
     },
   },
   {
@@ -110,27 +78,30 @@ const productSchema = new mongoose.Schema(
 );
 
 // Compound indexes for common query patterns
-productSchema.index({ sku: 1, available: 1 });  // Stock availability checks
-productSchema.index({ productType: 1, available: 1 });  // Category stock views
-productSchema.index({ mart: 1, available: 1 });  // Mart-specific inventory
-productSchema.index({ 
-  'purchaseHistory.date': -1, 
-  'purchaseHistory.costOfPrice': 1 
-});  // Purchase analysis
+productSchema.index({ sku: 1, available: 1 }); // Stock availability checks
+productSchema.index({ productType: 1, available: 1 }); // Category stock views
+productSchema.index({ mart: 1, available: 1 }); // Mart-specific inventory
+productSchema.index({
+  'purchaseHistory.date': -1,
+  'purchaseHistory.costOfPrice': 1,
+}); // Purchase analysis
 
 // Text index for product search
-productSchema.index({
-  productName: 'text',
-  sku: 'text',
-  upc: 'text'
-}, {
-  weights: {
-    productName: 3,
-    sku: 2,
-    upc: 1
+productSchema.index(
+  {
+    productName: 'text',
+    sku: 'text',
+    upc: 'text',
   },
-  name: 'product_search_index'
-});
+  {
+    weights: {
+      productName: 3,
+      sku: 2,
+      upc: 1,
+    },
+    name: 'product_search_index',
+  }
+);
 
 const Product = mongoose.model('Product', productSchema);
 

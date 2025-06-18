@@ -1,6 +1,9 @@
 import fs from 'fs';
 import cloudinary from '../config/cloudinary';
-const uploadLocalFileToCloudinary = async (localPath: string, folder?: string) => {
+const uploadLocalFileToCloudinary = async (
+  localPath: string,
+  folder?: string
+) => {
   try {
     const result = new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
