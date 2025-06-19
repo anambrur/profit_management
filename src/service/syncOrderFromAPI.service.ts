@@ -4,16 +4,19 @@ import { Order } from '../types/types';
 import generateAccessToken from '../utils/generateAccessToken';
 
 const syncOrdersFromAPI = async (
-  storeId: string,
-  storeClientId: string,
-  storeClientSecret: string
+  storeId?: string,
+  storeClientId?: string,
+  storeClientSecret?: string
 ) => {
   try {
     const correlationId = uuid();
     // console.log(`Starting sync for store ${storeId}`);
 
     // 1. Generate Access Token
-    const accessToken = await generateAccessToken(storeClientId, storeClientSecret);
+    const accessToken = await generateAccessToken(
+      storeClientId as string,
+      storeClientSecret as string
+    );
     if (!accessToken) {
       throw new Error('Failed to generate access token');
     }
@@ -24,7 +27,7 @@ const syncOrdersFromAPI = async (
     for (const shipNodeType of shipNodeTypes) {
       try {
         // console.log(`Fetching ${shipNodeType} orders for store ${storeId}`);
-        
+
         const response = await axios.get(
           'https://marketplace.walmartapis.com/v3/orders',
           {
@@ -39,7 +42,7 @@ const syncOrdersFromAPI = async (
               'WM_SEC.ACCESS_TOKEN': accessToken,
               'WM_QOS.CORRELATION_ID': correlationId,
               'WM_SVC.NAME': 'Walmart Marketplace',
-              'Accept': 'application/json',
+              Accept: 'application/json',
               'Content-Type': 'application/json',
             },
             timeout: 10000, // 10 second timeout
@@ -68,7 +71,10 @@ const syncOrdersFromAPI = async (
 
     return allOrders;
   } catch (err: any) {
-    console.error(`Error processing store ${storeId}:`, err.response?.data || err.message);
+    console.error(
+      `Error processing store ${storeId}:`,
+      err.response?.data || err.message
+    );
     throw err;
   }
 };

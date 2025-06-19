@@ -3,7 +3,6 @@ import expressAsyncHandler from 'express-async-handler';
 import fs from 'fs';
 import createHttpError from 'http-errors';
 import cloudinary from '../config/cloudinary';
-import { encrypt } from '../service/encryptionAndDecryption.service';
 import uploadLocalFileToCloudinary from '../service/fileUpload.service';
 import storeModel from './store.model';
 

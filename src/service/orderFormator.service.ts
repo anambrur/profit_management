@@ -1,6 +1,6 @@
 // orderFormator.service.ts
-import productModel from '../product/product.model';
 import orderModel from '../order/order.model';
+import productModel from '../product/product.model';
 
 async function transformOrdersData(orders: any[]) {
   const stockedAlerts: any[] = [];
@@ -54,6 +54,7 @@ async function transformOrdersData(orders: any[]) {
             if (a.costOfPrice !== b.costOfPrice) {
               return a.costOfPrice - b.costOfPrice;
             }
+            // @ts-ignore
             return new Date(a.date) - new Date(b.date);
           })
           .filter((p) => p.quantity > 0);
@@ -167,6 +168,7 @@ async function transformOrdersData(orders: any[]) {
       failedOrders.push({
         orderId: order.customerOrderId,
         reason: 'Processing error',
+        // @ts-ignore
         error: error.message,
       });
       continue;
@@ -182,6 +184,7 @@ async function transformOrdersData(orders: any[]) {
         ...ordersToCreate.map((order) => ({
           orderId: order.customerOrderId,
           reason: 'Database insertion failed',
+          // @ts-ignore
           error: error.message,
         }))
       );

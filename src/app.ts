@@ -10,8 +10,8 @@ import envConfig from './config/envConfig.js';
 import fulfillmentRouter from './fulfillment/fullfillment.route.js';
 import globalError from './middlewares/globalError.js';
 import orderRouter from './order/order.route.js';
-import profitRouter from './profit_analyzer/profit.route.js';
 import productRouter from './product/product.routes.js';
+import profitRouter from './profit_analyzer/profit.route.js';
 import storeRouter from './store/store.route.js';
 import userRouter from './user/user.routes.js';
 
@@ -41,7 +41,7 @@ if (envConfig.nodeEnv !== 'development') {
 }
 
 app.use('/api/users', userRouter);
-app.use('/api/profits', profitRouter)
+app.use('/api/profits', profitRouter);
 app.use('/api/stores', storeRouter);
 app.use('/api/products', productRouter);
 app.use('/api/orders', orderRouter);
