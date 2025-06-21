@@ -4,6 +4,7 @@ import expressAsyncHandler from 'express-async-handler';
 import transformOrdersData from '../service/orderFormator.service';
 import syncOrdersFromAPI from '../service/syncOrderFromAPI.service';
 import storeModel from '../store/store.model';
+import orderModel from './order.model';
 
 export const getAllOrders = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -78,3 +79,14 @@ export const getAllOrders = expressAsyncHandler(
   }
 );
 
+//  get all orders
+export const getOrders = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const orders = await orderModel.find({});
+      res.status(200).json({ orders, success: true });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
