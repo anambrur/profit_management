@@ -55,11 +55,11 @@ async function transformOrdersData(orders: any[]) {
         const productHistories = await productHistoryModel
           .find({ 
             productId: product._id,
-            quantity: { $gt: 0 } // Only include histories with available quantity
+            quantity: { $gt: 0 }
           })
           .sort({ 
-            costOfPrice: 1, // Sort by price (lowest first)
-            date: 1        // Then by date (oldest first)
+            costOfPrice: 1,
+            date: 1        
           })
           .lean();
 
