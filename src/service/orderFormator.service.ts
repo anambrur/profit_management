@@ -1,6 +1,9 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // orderFormator.service.ts
 import orderModel from '../order/order.model';
 import productModel from '../product/product.model';
+import productHistoryModel from '../productHistory/productHistory.model'; // Import the new model
 
 async function transformOrdersData(orders: any[]) {
   const stockedAlerts: any[] = [];
@@ -48,33 +51,34 @@ async function transformOrdersData(orders: any[]) {
           break;
         }
 
-        // Sort purchases by price (lowest first) and then by date (oldest first)
-        const sortedPurchases = [...product.purchaseHistory]
-          .sort((a, b) => {
-            if (a.costOfPrice !== b.costOfPrice) {
-              return a.costOfPrice - b.costOfPrice;
-            }
-            // @ts-ignore
-            return new Date(a.date) - new Date(b.date);
+        // Get purchase histories for this product from the separate collection
+        const productHistories = await productHistoryModel
+          .find({ 
+            productId: product._id,
+            quantity: { $gt: 0 } // Only include histories with available quantity
           })
-          .filter((p) => p.quantity > 0);
+          .sort({ 
+            costOfPrice: 1, // Sort by price (lowest first)
+            date: 1        // Then by date (oldest first)
+          })
+          .lean();
 
         let remainingQuantity = quantityNeeded;
         let purchasePrice = 0;
         const updates = [];
 
         // Allocate from cheapest inventory first
-        for (const purchase of sortedPurchases) {
+        for (const history of productHistories) {
           if (remainingQuantity <= 0) break;
 
-          const quantityToTake = Math.min(remainingQuantity, purchase.quantity);
+          const quantityToTake = Math.min(remainingQuantity, parseInt(history.quantity));
 
           if (purchasePrice === 0) {
-            purchasePrice = purchase.costOfPrice;
+            purchasePrice = parseFloat(history.costOfPrice);
           }
 
           updates.push({
-            purchaseId: purchase._id,
+            historyId: history._id,
             quantityTaken: quantityToTake,
           });
 
@@ -93,16 +97,22 @@ async function transformOrdersData(orders: any[]) {
 
         // Apply all quantity updates to the database
         for (const update of updates) {
+          await productHistoryModel.updateOne(
+            { _id: update.historyId },
+            { 
+              $inc: { 
+                quantity: -update.quantityTaken 
+              } 
+            }
+          );
+
+          // Also update the product's available quantity
           await productModel.updateOne(
-            {
-              _id: product._id,
-              'purchaseHistory._id': update.purchaseId,
-            },
-            {
-              $inc: {
-                'purchaseHistory.$.quantity': -update.quantityTaken,
-                available: -update.quantityTaken,
-              },
+            { _id: product._id },
+            { 
+              $inc: { 
+                available: -update.quantityTaken 
+              } 
             }
           );
         }
@@ -117,7 +127,6 @@ async function transformOrdersData(orders: any[]) {
             line.charges?.charge
               ?.find((c: any) => c.chargeType === 'PRODUCT')
               ?.chargeAmount?.amount?.toString() || '0',
-
           tax:
             line.charges?.charge
               ?.find((c: any) => c.chargeType === 'PRODUCT')

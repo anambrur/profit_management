@@ -3,6 +3,7 @@ import app from './app.js';
 import envConfig from './config/envConfig.js';
 import connectDB from './db/dbConnection.js';
 import { OrderCornJob, ProductCornJob } from './service/cornJob.service.js';
+import { initNotificationService } from './service/notification.service';
 
 const server = http.createServer(app);
 
@@ -11,6 +12,7 @@ const startServer = async () => {
   server.listen(envConfig.port, () => {
     console.log(`Server is running on http://localhost:${envConfig.port}`);
   });
+  initNotificationService(server);
   // ProductCornJob();
   // OrderCornJob();
 };
