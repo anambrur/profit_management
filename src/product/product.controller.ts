@@ -16,6 +16,7 @@ export const getAllProducts = expressAsyncHandler(
           const data = await syncItemsFromAPI(
             store.storeId,
             store.storeClientId,
+            store._id.toString(),
             store.storeClientSecret
           );
           if (!data) {

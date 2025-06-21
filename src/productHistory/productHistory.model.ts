@@ -7,9 +7,9 @@ const productHistorySchema = new mongoose.Schema({
     required: true,
   },
   storeID: {
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Store',
     required: true,
-    index: true,
   },
   quantity: {
     type: String,

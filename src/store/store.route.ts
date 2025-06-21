@@ -21,7 +21,7 @@ storeRouter.route('/get-store/:id').get(authenticateUser, getSingleStore);
 // @ts-ignore
 storeRouter.route('/store-update/:id').put(authenticateUser, updateStore);
 // @ts-ignore
-storeRouter.route('/get-all-store').get(authenticateUser, getAllStore);
+storeRouter.route('/get-all-store').get(getAllStore);
 // @ts-ignore
 storeRouter.route('/store-delete/:id').delete(authenticateUser, deleteStore);
 
