@@ -12,15 +12,15 @@ const productHistorySchema = new mongoose.Schema({
     index: true,
   },
   quantity: {
-    type: String,
+    type: Number,
     default: 0,
   },
   costOfPrice: {
-    type: String,
+    type: Number,
     default: 0,
   },
   sellPrice: {
-    type: String,
+    type: Number,
     default: 0,
   },
   date: {
