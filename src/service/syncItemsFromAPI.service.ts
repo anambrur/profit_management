@@ -7,11 +7,14 @@ import getAllProducts from '../utils/getAllProducts';
 const syncItemsFromAPI = async (
   storeId: string,
   storeClientId: string,
+  storeObjectId: string,
   storeClientSecret: string
 ) => {
   if (!storeId) {
     throw new Error('Store ID is required');
   }
+
+  console.log(storeObjectId);
 
   try {
     // 1. Generate access token
@@ -65,7 +68,7 @@ const syncItemsFromAPI = async (
     // 6. Prepare product history records using inserted ObjectIds
     const purchaseHistoryItems = insertedProducts.map((product, index) => ({
       productId: product._id, // <-- This is the actual ObjectId
-      storeID: storeId,
+      storeID: storeObjectId,
       quantity: 0,
       costOfPrice: 0,
       sellPrice: filteredItems[index]?.price?.amount || 0,

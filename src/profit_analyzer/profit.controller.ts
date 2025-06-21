@@ -125,7 +125,7 @@ async function getSalesData(startDate: Date, endDate: Date, storeId?: string) {
 
     order.products.forEach((product) => {
       const qty = product.quantity || 1;
-      orderSales += parseFloat(product.sellPrice) * qty;
+      orderSales += parseFloat(product.sellPrice as string) * qty;
       orderCost += parseFloat(product.PurchasePrice) * qty;
       orderFees +=
         (parseFloat(product.tax) || 0) + (parseFloat(product.shipping) || 0);

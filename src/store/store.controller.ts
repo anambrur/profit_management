@@ -60,7 +60,7 @@ export const getAllStore = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const stores = await storeModel.find();
-      res.status(200).json({ stores, success: true });
+      res.status(200).json({ data: stores, success: true });
     } catch (error) {
       next(error);
     }
