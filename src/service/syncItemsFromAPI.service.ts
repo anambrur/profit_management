@@ -14,8 +14,6 @@ const syncItemsFromAPI = async (
     throw new Error('Store ID is required');
   }
 
-  console.log(storeObjectId);
-
   try {
     // 1. Generate access token
     const token = await generateAccessToken(storeClientId, storeClientSecret);
@@ -60,6 +58,8 @@ const syncItemsFromAPI = async (
       publishedStatus: apiItem.publishedStatus,
       lifecycleStatus: apiItem.lifecycleStatus,
     }));
+
+    console.log(storeObjectId);
 
     // 5. Insert into productModel
     const insertedProducts = await productModel.insertMany(newProducts);
