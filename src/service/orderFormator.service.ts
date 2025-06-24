@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // orderFormator.service.ts
-import orderModel from '../order/order.model';
-import productModel from '../product/product.model';
-import productHistoryModel from '../productHistory/productHistory.model'; // Import the new model
+import orderModel from '../order/order.model.js';
+import productModel from '../product/product.model.js';
+import productHistoryModel from '../productHistory/productHistory.model.js'; // Import the new model
 
 async function transformOrdersData(orders: any[]) {
   const stockedAlerts: any[] = [];
@@ -53,13 +53,13 @@ async function transformOrdersData(orders: any[]) {
 
         // Get purchase histories for this product from the separate collection
         const productHistories = await productHistoryModel
-          .find({ 
+          .find({
             productId: product._id,
-            quantity: { $gt: 0 }
+            quantity: { $gt: 0 },
           })
-          .sort({ 
+          .sort({
             costOfPrice: 1,
-            date: 1        
+            date: 1,
           })
           .lean();
 
@@ -71,10 +71,13 @@ async function transformOrdersData(orders: any[]) {
         for (const history of productHistories) {
           if (remainingQuantity <= 0) break;
 
-          const quantityToTake = Math.min(remainingQuantity, parseInt(history.quantity));
+          const quantityToTake = Math.min(
+            remainingQuantity,
+            parseInt(String(history.quantity))
+          );
 
           if (purchasePrice === 0) {
-            purchasePrice = parseFloat(history.costOfPrice);
+            purchasePrice = parseFloat(history.costOfPrice.toString());
           }
 
           updates.push({
@@ -99,20 +102,20 @@ async function transformOrdersData(orders: any[]) {
         for (const update of updates) {
           await productHistoryModel.updateOne(
             { _id: update.historyId },
-            { 
-              $inc: { 
-                quantity: -update.quantityTaken 
-              } 
+            {
+              $inc: {
+                quantity: -update.quantityTaken,
+              },
             }
           );
 
           // Also update the product's available quantity
           await productModel.updateOne(
             { _id: product._id },
-            { 
-              $inc: { 
-                available: -update.quantityTaken 
-              } 
+            {
+              $inc: {
+                available: -update.quantityTaken,
+              },
             }
           );
         }

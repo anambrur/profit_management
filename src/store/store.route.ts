@@ -14,7 +14,7 @@ const storeRouter = Router();
 storeRouter
   .route('/create-store')
   // @ts-ignore
-  .post(authenticateUser, upload.single('storeImage'), createStore);
+  .post(upload.single('storeImage'), createStore);
 
 // @ts-ignore
 storeRouter.route('/get-store/:id').get(authenticateUser, getSingleStore);

@@ -4,10 +4,10 @@ import expressAsyncHandler from 'express-async-handler';
 import fs from 'fs';
 import createHttpError from 'http-errors';
 import jwt from 'jsonwebtoken';
-import cloudinary from '../config/cloudinary';
-import envConfig from '../config/envConfig';
-import uploadLocalFileToCloudinary from '../service/fileUpload.service';
-import userModel from './user.model';
+import cloudinary from '../config/cloudinary.js';
+import envConfig from '../config/envConfig.js';
+import uploadLocalFileToCloudinary from '../service/fileUpload.service.js';
+import userModel from './user.model.js';
 
 //  ✅ Create User
 export const createUser = expressAsyncHandler(
@@ -65,62 +65,94 @@ export const createUser = expressAsyncHandler(
     }
   }
 );
+
 // ✅ Login User
 export const loginUser = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      return next(createHttpError(400, 'All fields are required'));
-    }
+    try {
+      if (!email || !password) {
+        return next(createHttpError(400, 'All fields are required'));
+      }
 
-    const user = await userModel.findOne({ email });
-    if (!user) {
-      return next(createHttpError(400, 'User not found'));
-    }
+      const user = await userModel.findOne({ email });
+      if (!user) {
+        return next(createHttpError(404, 'User not found'));
+      }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return next(createHttpError(400, 'Invalid password'));
-    }
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        return next(createHttpError(401, 'Invalid password'));
+      }
 
-    const token = jwt.sign({ id: user._id }, envConfig.jwtSecret as string, {
-      expiresIn: '1d',
-    });
-    res
-      .status(200)
-      .cookie('token', token, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'none',
-      })
-      .json({ message: 'Login successful', user, success: true, token });
+      // ✅ Update lastLogin
+      user.lastLogin = new Date();
+      await user.save();
+
+      // ✅ Create JWT token
+      const token = jwt.sign({ id: user._id }, envConfig.jwtSecret as string, {
+        expiresIn: '1d',
+      });
+
+      res.cookie('token', token, {
+        httpOnly: false,
+        secure: true, // only works on HTTPS
+        sameSite: 'none', // allow cross-origin if needed
+        maxAge: 24 * 60 * 60 * 1000, // 1 day
+      });
+      // ✅ Send token in HTTP-Only Cookie
+      res.status(200).json({
+        message: 'Login successful',
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          username: user.username,
+          role: user.role,
+          status: user.status,
+          lastLogin: user.lastLogin,
+          profileImage: user.profileImage,
+        },
+        success: true,
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 );
+
 // ✅ Logout User
 export const logoutUser = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    res
-      .status(200)
-      .clearCookie('token')
-      .json({ message: 'Logout successful', success: true });
+    res.clearCookie('token', {
+      httpOnly: false,
+      secure: true, // same as cookie set
+      sameSite: 'none', // same as cookie set
+      path: '/', // default path
+    });
+    res.status(200).json({ message: 'Logout successful', success: true });
   }
 );
-//  ✅ Update User Profile
 export const updateUser = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { name, email, username, phone, address } = req.body;
-
-    if (!name || !email || !username || !phone) {
-      return next(createHttpError(400, 'All fields are required'));
-    }
-
     try {
       const user = await userModel.findById(req.params.id);
       if (!user) {
         return next(createHttpError(404, 'User not found'));
       }
 
+      const {
+        name,
+        email,
+        username,
+        phone,
+        address,
+        role, // coming from body
+        status, // coming from body
+      } = req.body;
+
+      // ✅ Handle file upload (optional)
       if (req.file) {
         if (user.profileImagePublicId) {
           await cloudinary.uploader.destroy(user.profileImagePublicId);
@@ -130,18 +162,27 @@ export const updateUser = expressAsyncHandler(
           req.file.path,
           'users_profile_images'
         );
+
         await fs.promises.unlink(req.file.path);
 
         user.profileImage = (result as { secure_url: string }).secure_url;
         user.profileImagePublicId = (result as { public_id: string }).public_id;
       }
 
-      // ✅ Update fields
+      // ✅ Update basic fields
       user.name = name;
       user.email = email;
       user.username = username;
       user.phone = phone;
       user.address = address;
+
+      // ✅ Check if current user is admin before allowing role/status change
+      const currentUser = req.user?.id; // Assuming you have authentication middleware
+      const getUser = await userModel.findById(currentUser);
+      if (getUser?.role === 'admin') {
+        user.role = role || user.role;
+        user.status = status || user.status;
+      }
 
       const updatedUser = await user.save();
 
@@ -201,3 +242,10 @@ export const getUser = expressAsyncHandler(
     }
   }
 );
+
+export const changePassword = async (user: any, newPassword: string) => {
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
+  user.password = hashedPassword;
+  await user.save();
+};

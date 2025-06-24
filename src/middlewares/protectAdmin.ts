@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-import userModel from '../user/user.model';
+import userModel from '../user/user.model.js';
 
 const protectAdmin = async (
   req: Request,

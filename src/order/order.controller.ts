@@ -1,10 +1,10 @@
 // order.controller.ts
 import { NextFunction, Request, Response } from 'express';
 import expressAsyncHandler from 'express-async-handler';
-import transformOrdersData from '../service/orderFormator.service';
-import syncOrdersFromAPI from '../service/syncOrderFromAPI.service';
-import storeModel from '../store/store.model';
-import orderModel from './order.model';
+import transformOrdersData from '../service/orderFormator.service.js';
+import syncOrdersFromAPI from '../service/syncOrderFromAPI.service.js';
+import storeModel from '../store/store.model.js';
+import orderModel from './order.model.js';
 
 export const getAllOrders = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -83,8 +83,29 @@ export const getAllOrders = expressAsyncHandler(
 export const getOrders = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const orders = await orderModel.find({});
-      res.status(200).json({ orders, success: true });
+      // Parse pagination params
+      const page = Math.max(Number(req.query.page) || 1, 1);
+      const limit = Math.min(Number(req.query.limit) || 20, 100);
+      const skip = (page - 1) * limit;
+
+      // Get total count
+      const total = await orderModel.countDocuments();
+
+      // Get paginated data
+      const orders = await orderModel
+        .find({})
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+      res.status(200).json({
+        success: true,
+        orders,
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      });
     } catch (error) {
       next(error);
     }

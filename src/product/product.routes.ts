@@ -3,7 +3,7 @@ import {
   // addSingleProductHistory,
   getAllProducts,
   getMyDbAllProduct,
-} from './product.controller';
+} from './product.controller.js';
 
 const productRouter = Router();
 
