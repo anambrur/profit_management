@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createFulfillment } from './fulfillment.controller';
+import { createFulfillment } from './fulfillment.controller.js';
 
 const fulfillmentRouter = Router();
 

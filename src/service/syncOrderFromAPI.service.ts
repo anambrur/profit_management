@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { v4 as uuid } from 'uuid';
-import { Order } from '../types/types';
-import generateAccessToken from '../utils/generateAccessToken';
+import { Order } from '../types/types.js';
+import generateAccessToken from '../utils/generateAccessToken.js';
 
 const syncOrdersFromAPI = async (
   storeId?: string,

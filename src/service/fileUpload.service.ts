@@ -1,5 +1,5 @@
 import fs from 'fs';
-import cloudinary from '../config/cloudinary';
+import cloudinary from '../config/cloudinary.js';
 const uploadLocalFileToCloudinary = async (
   localPath: string,
   folder?: string

@@ -1,60 +1,69 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextFunction, Request, Response } from 'express';
-import expressAsyncHandler from 'express-async-handler';
-import orderModel from '../order/order.model';
+import orderModel from '../order/order.model.js';
 
-export const getProfit = expressAsyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const now = new Date();
-      const { storeId, startDate, endDate } = req.query;
+export const getProfit = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const now = new Date();
 
-      // Get data for all predefined periods in parallel
-      const [today, yesterday, thisMonth, lastMonth] = await Promise.all([
-        getPeriodData('today', now, storeId?.toString()),
-        getPeriodData('yesterday', now, storeId?.toString()),
-        getPeriodData('thisMonth', now, storeId?.toString()),
-        getPeriodData('lastMonth', now, storeId?.toString()),
-      ]);
+    // Extract query parameters with type safety
+    const storeId = req.query.storeId?.toString();
+    const startDate = req.query.startDate?.toString();
+    const endDate = req.query.endDate?.toString();
 
-      // Prepare the base response with predefined periods
-      const responseData: any = {
-        today,
-        yesterday,
-        thisMonth,
-        lastMonth,
-      };
+    // Parallel fetching of fixed period data
+    const [today, yesterday, thisMonth, lastMonth] = await Promise.all([
+      getPeriodData('today', now, storeId),
+      getPeriodData('yesterday', now, storeId),
+      getPeriodData('thisMonth', now, storeId),
+      getPeriodData('lastMonth', now, storeId),
+    ]);
 
-      // Add custom date range data if provided
-      if (startDate && endDate) {
-        const customStart = new Date(startDate as string);
-        const customEnd = new Date(endDate as string);
-        customEnd.setHours(23, 59, 59, 999);
+    const responseData: any = {
+      today,
+      yesterday,
+      thisMonth,
+      lastMonth,
+    };
 
-        responseData.custom = await getSalesData(
-          customStart,
-          customEnd,
-          storeId?.toString()
-        );
-        responseData.customPeriod = {
-          start: customStart,
-          end: customEnd,
-        };
+    // Handle custom date range
+    if (startDate && endDate) {
+      const customStart = new Date(startDate);
+      const customEnd = new Date(endDate);
+      customEnd.setHours(23, 59, 59, 999);
+
+      // Optional: Validate the dates
+      if (isNaN(customStart.getTime()) || isNaN(customEnd.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid startDate or endDate',
+        });
       }
 
-      res.json({
-        success: true,
-        data: responseData,
-      });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({
-        success: false,
-        message: 'Server Error',
-      });
+      const customData = await getSalesData(customStart, customEnd, storeId);
+      responseData.custom = customData;
+      responseData.customPeriod = {
+        start: customStart,
+        end: customEnd,
+      };
     }
+
+    res.json({
+      success: true,
+      data: responseData,
+    });
+  } catch (err) {
+    console.error('Error in getProfit:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+    });
   }
-);
+};
 
 // Helper function to get data for a specific period
 async function getPeriodData(period: string, now: Date, storeId?: string) {
@@ -126,9 +135,10 @@ async function getSalesData(startDate: Date, endDate: Date, storeId?: string) {
     order.products.forEach((product) => {
       const qty = product.quantity || 1;
       orderSales += parseFloat(product.sellPrice as string) * qty;
-      orderCost += parseFloat(product.PurchasePrice) * qty;
+      orderCost += parseFloat(product.PurchasePrice as string) * qty;
       orderFees +=
-        (parseFloat(product.tax) || 0) + (parseFloat(product.shipping) || 0);
+        (parseFloat(product.tax as string) || 0) +
+        (parseFloat(product.shipping as string) || 0);
     });
 
     const orderProfit = orderSales - orderCost - orderFees;

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import corn from 'node-cron';
-import { sendNotification } from './notification.service';
+import { sendNotification } from './notification.service.js';
 
 const apiUrl = process.env.API_BASE_URL;
 

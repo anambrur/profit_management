@@ -1,8 +1,8 @@
-import productModel from '../product/product.model';
-import productHistoryModel from '../productHistory/productHistory.model';
-import { Product } from '../types/types';
-import generateAccessToken from '../utils/generateAccessToken';
-import getAllProducts from '../utils/getAllProducts';
+import productModel from '../product/product.model.js';
+import productHistoryModel from '../productHistory/productHistory.model.js';
+import { Product } from '../types/types.js';
+import generateAccessToken from '../utils/generateAccessToken.js';
+import getAllProducts from '../utils/getAllProducts.js';
 
 const syncItemsFromAPI = async (
   storeId: string,

@@ -2,9 +2,9 @@ import { NextFunction, Request, Response } from 'express';
 import expressAsyncHandler from 'express-async-handler';
 import fs from 'fs';
 import createHttpError from 'http-errors';
-import cloudinary from '../config/cloudinary';
-import uploadLocalFileToCloudinary from '../service/fileUpload.service';
-import storeModel from './store.model';
+import cloudinary from '../config/cloudinary.js';
+import uploadLocalFileToCloudinary from '../service/fileUpload.service.js';
+import storeModel from './store.model.js';
 
 export const createStore = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -31,9 +31,6 @@ export const createStore = expressAsyncHandler(
         imageUrl = (result as { secure_url: string }).secure_url;
         profileImagePublicId = (result as { public_id: string }).public_id;
       }
-
-      // const encryptedStoreClientId = storeClientId;
-      // const encryptedStoreClientSecret = storeClientSecret;
 
       const newStore = await storeModel.create({
         storeId,
