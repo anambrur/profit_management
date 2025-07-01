@@ -20,7 +20,7 @@ const app: Application = express();
 
 if (envConfig.nodeEnv !== 'development') {
   app.use(helmet());
-  app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
+  app.use(cors({ origin: ['http://localhost:3000', process.env.FRONTEND_URL!], credentials: true }));
   app.use(morgan('combined'));
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
