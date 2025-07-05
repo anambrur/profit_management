@@ -69,13 +69,20 @@ const syncItemsFromAPI = async (
     const purchaseHistoryItems = insertedProducts.map((product, index) => ({
       productId: product._id, // <-- This is the actual ObjectId
       storeID: storeObjectId,
-      quantity: 0,
+      orderId: '',
+      link: '',
+      purchaseQuantity: 0,
+      reciveQuantity: 0,
+      lostQuantity: 0,
       costOfPrice: 0,
+      sendToWFS: 0,
       sellPrice: filteredItems[index]?.price?.amount || 0,
       totalPrice: 0,
       email: '',
       card: '',
       supplier: '',
+      status: '',
+      upc: '',
     }));
 
     // 7. Insert into productHistoryModel
