@@ -11,10 +11,40 @@ const productHistorySchema = new mongoose.Schema({
     ref: 'Store',
     required: true,
   },
-  quantity: {
+  orderId: {
+    type: String,
+    trim: true,
+  },
+  link: {
+    type: String,
+    trim: true,
+  },
+  purchaseQuantity: {
     type: Number,
     default: 0,
   },
+  reciveQuantity: {
+    type: Number,
+    default: 0,
+  },
+  lostQuantity: {
+    type: Number,
+    default: 0,
+  },
+  sendToWFS: {
+    type: Number,
+    default: 0,
+  },
+  status: {
+    type: String,
+  },
+  upc: {
+    type: String,
+  },
+  // quantity: {
+  //   type: Number,
+  //   default: 0,
+  // },
   costOfPrice: {
     type: Number,
     default: 0,

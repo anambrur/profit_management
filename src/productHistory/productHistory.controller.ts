@@ -211,7 +211,7 @@ export const updateSingleField = async (
       .status(200)
       .json({ message: `${field} updated successfully`, updatedProduct });
   } catch (error) {
-    res.status(500).json({ message: 'Something went wrong', error });
+    next(error);
   }
 };
 

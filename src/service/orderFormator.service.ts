@@ -55,7 +55,7 @@ async function transformOrdersData(orders: any[]) {
         const productHistories = await productHistoryModel
           .find({
             productId: product._id,
-            quantity: { $gt: 0 },
+            reciveQuantity: { $gt: 0 },
           })
           .sort({
             costOfPrice: 1,
@@ -73,7 +73,7 @@ async function transformOrdersData(orders: any[]) {
 
           const quantityToTake = Math.min(
             remainingQuantity,
-            parseInt(String(history.quantity))
+            parseInt(String(history.reciveQuantity - history.lostQuantity), 10)
           );
 
           if (purchasePrice === 0) {
