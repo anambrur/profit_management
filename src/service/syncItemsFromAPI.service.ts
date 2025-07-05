@@ -70,9 +70,8 @@ const syncItemsFromAPI = async (
       productId: product._id, // <-- This is the actual ObjectId
       storeID: storeObjectId,
       orderId: '',
-      link: '',
       purchaseQuantity: 0,
-      reciveQuantity: 0,
+      receiveQuantity: 0,
       lostQuantity: 0,
       costOfPrice: 0,
       sendToWFS: 0,
@@ -80,7 +79,10 @@ const syncItemsFromAPI = async (
       totalPrice: 0,
       email: '',
       card: '',
-      supplier: '',
+      supplier: {
+        name: '',
+        link: '',
+      },
       status: '',
       upc: '',
     }));
