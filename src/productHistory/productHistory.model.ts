@@ -49,10 +49,6 @@ const productHistorySchema = new mongoose.Schema(
     upc: {
       type: String,
     },
-    // quantity: {
-    //   type: Number,
-    //   default: 0,
-    // },
     costOfPrice: {
       type: Number,
       default: 0,
