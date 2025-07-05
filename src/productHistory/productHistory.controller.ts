@@ -9,10 +9,13 @@ export const createProductHistory = async (
   next: NextFunction
 ) => {
   try {
-    const id = req.params.id;
+    const { id } = req.params;
     const {
       storeID,
-      quantity,
+      purchase,
+      received,
+      lost,
+      sentToWfs,
       costOfPrice,
       sellPrice,
       date,
@@ -20,21 +23,49 @@ export const createProductHistory = async (
       card,
       supplier,
     } = req.body;
+
+    // Check if product exists
     const product = await Product.findById(id);
     if (!product) {
       return next(createHttpError(404, 'Product not found'));
     }
+
+    // Handle supplier (could be stringified JSON or object)
+    let supplierObject: { name: string; link: string } | undefined;
+
+    if (supplier) {
+      if (typeof supplier === 'string') {
+        try {
+          supplierObject = JSON.parse(supplier);
+        } catch {
+          return res.status(400).json({ message: 'Invalid supplier format' });
+        }
+      } else if (typeof supplier === 'object') {
+        supplierObject = supplier;
+      }
+
+      if (!supplierObject?.name || !supplierObject?.link) {
+        return res
+          .status(400)
+          .json({ message: 'Supplier must have name and link' });
+      }
+    }
+
     const newProduct = await productHistoryModel.create({
       productId: product._id,
-      storeID: storeID,
-      quantity: quantity,
-      costOfPrice: costOfPrice,
-      sellPrice: sellPrice,
-      date: date,
-      email: email,
-      card: card,
-      supplier: supplier,
+      storeID,
+      purchaseQuantity: purchase || 0,
+      receiveQuantity: received || 0,
+      lostQuantity: lost || 0,
+      sendToWFS: sentToWfs || 0,
+      costOfPrice: costOfPrice || 0,
+      sellPrice: sellPrice || 0,
+      date: date || new Date(),
+      email: email || '',
+      card: card || '',
+      supplier: supplierObject,
     });
+
     res.status(201).json({ newProduct, success: true });
   } catch (error) {
     next(error);
@@ -177,39 +208,74 @@ export const updateSingleField = async (
   const { id } = req.params;
   const { field, value } = req.body;
 
-  console.log(field, value);
   try {
     const validFields = [
-      'quantity',
+      'orderId',
+      'purchaseQuantity',
+      'receiveQuantity',
+      'lostQuantity',
+      'sendToWFS',
       'costOfPrice',
       'sellPrice',
       'date',
       'card',
       'email',
+      'status',
       'supplier',
+      'upc',
     ];
 
     if (!validFields.includes(field)) {
       return res.status(400).json({ message: 'Invalid field name' });
     }
 
-    const updateObj = { [field]: value, updatedAt: new Date() };
+    let updateObj;
+    if (field === 'supplier') {
+      let supplierData;
+
+      try {
+        supplierData = JSON.parse(value);
+      } catch {
+        return res
+          .status(400)
+          .json({ message: 'Invalid JSON format for supplier' });
+      }
+
+      if (!supplierData.supplierName || !supplierData.supplierLink) {
+        return res
+          .status(400)
+          .json({ message: 'Missing supplier name or link' });
+      }
+
+      updateObj = {
+        supplier: {
+          name: supplierData.supplierName,
+          link: supplierData.supplierLink,
+        },
+        updatedAt: new Date(),
+      };
+    } else {
+      // Default single field update
+      updateObj = {
+        [field]: value,
+        updatedAt: new Date(),
+      };
+    }
 
     const updatedProduct = await productHistoryModel.findByIdAndUpdate(
       id,
       updateObj,
-      {
-        new: true,
-      }
+      { new: true }
     );
 
     if (!updatedProduct) {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    res
-      .status(200)
-      .json({ message: `${field} updated successfully`, updatedProduct });
+    res.status(200).json({
+      message: `${field} updated successfully`,
+      updatedProduct,
+    });
   } catch (error) {
     next(error);
   }
