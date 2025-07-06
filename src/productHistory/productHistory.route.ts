@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import {
+  bulkUploadProductHistory,
   createProductHistory,
   getAllProductHistory,
   getProductHistoryList,
   updateSingleField,
 } from './productHistory.controller.js';
+import { csvUpload } from '../middlewares/multer.js';
 
 const productHistoryRouter = Router();
 
@@ -26,4 +28,13 @@ productHistoryRouter
   .route('/get-product-history-list/:id')
   .get(getProductHistoryList);
 
+
+
+  productHistoryRouter.post(
+    '/upload-product-history',
+    csvUpload.single('file'),
+    (req, res, next) => {
+      Promise.resolve(bulkUploadProductHistory(req, res, next)).catch(next);
+    }
+  );
 export default productHistoryRouter;
