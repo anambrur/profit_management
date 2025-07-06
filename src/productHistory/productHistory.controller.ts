@@ -1,8 +1,9 @@
 import type { NextFunction, Request, Response } from 'express';
 import createHttpError from 'http-errors';
+import mongoose from 'mongoose';
+import xlsx from 'xlsx';
 import Product from '../product/product.model.js';
 import productHistoryModel from './productHistory.model.js';
-
 export const createProductHistory = async (
   req: Request,
   res: Response,
@@ -19,6 +20,7 @@ export const createProductHistory = async (
       costOfPrice,
       sellPrice,
       date,
+      status,
       email,
       card,
       supplier,
@@ -59,6 +61,7 @@ export const createProductHistory = async (
       lostQuantity: lost || 0,
       sendToWFS: sentToWfs || 0,
       costOfPrice: costOfPrice || 0,
+      status: status || '',
       sellPrice: sellPrice || 0,
       date: date || new Date(),
       email: email || '',
@@ -137,7 +140,9 @@ export const getAllProductHistory = async (
     const search = String(
       req.query.sku || req.query.productName || req.query.search || ''
     ).trim();
-    console.log('SEARCH VALUE:', search); // 👈 Add this
+
+    const storeID = req.query.storeID as string | undefined;
+
     const pipeline: any[] = [
       {
         $lookup: {
@@ -159,6 +164,12 @@ export const getAllProductHistory = async (
       { $unwind: { path: '$store', preserveNullAndEmptyArrays: true } },
     ];
 
+    if (storeID && mongoose.Types.ObjectId.isValid(storeID)) {
+      pipeline.push({
+        $match: { storeID: new mongoose.Types.ObjectId(storeID) },
+      });
+    }
+
     if (search) {
       pipeline.push({
         $match: {
@@ -170,12 +181,58 @@ export const getAllProductHistory = async (
       });
     }
 
-    // ✅ Clone pipeline before pagination for count
+    // ✅ Clone for count & aggregation
     const countPipeline = [...pipeline, { $count: 'total' }];
-    const countResult = await productHistoryModel.aggregate(countPipeline);
-    const total = countResult[0]?.total || 0;
+    const totalAggregationPipeline = [
+      ...pipeline,
+      {
+        $group: {
+          _id: null,
+          totalPurchase: { $sum: '$purchaseQuantity' },
+          totalReceive: { $sum: '$receiveQuantity' },
+          totalLost: { $sum: '$lostQuantity' },
+          totalSendToWFS: { $sum: '$sendToWFS' },
+          totalCost: {
+            $sum: { $multiply: ['$purchaseQuantity', '$costOfPrice'] },
+          },
+          totalWFSCost: { $sum: { $multiply: ['$sendToWFS', '$costOfPrice'] } },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          totalPurchase: 1,
+          totalReceive: 1,
+          totalLost: 1,
+          totalSendToWFS: 1,
+          totalCost: 1,
+          totalWFSCost: 1,
+          remainingQuantity: {
+            $subtract: ['$totalReceive', '$totalSendToWFS'],
+          },
+          remainingCost: { $subtract: ['$totalCost', '$totalWFSCost'] },
+        },
+      },
+    ];
 
-    // ✅ Pagination setup
+    const [countResult, summaryResult] = await Promise.all([
+      productHistoryModel.aggregate(countPipeline),
+      productHistoryModel.aggregate(totalAggregationPipeline),
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const summary = summaryResult[0] || {
+      totalPurchase: 0,
+      totalReceive: 0,
+      totalLost: 0,
+      totalSendToWFS: 0,
+      totalCost: 0,
+      totalWFSCost: 0,
+      remainingQuantity: 0,
+      remainingCost: 0,
+    };
+
+    // ✅ Pagination
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Number(req.query.limit) || 20, 100);
     const skip = (page - 1) * limit;
@@ -193,13 +250,13 @@ export const getAllProductHistory = async (
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+      summary,
     });
   } catch (error) {
     next(error);
   }
 };
 
-// Update a single field by step (example: update supplier)
 export const updateSingleField = async (
   req: Request,
   res: Response,
@@ -218,6 +275,7 @@ export const updateSingleField = async (
       'costOfPrice',
       'sellPrice',
       'date',
+      'status',
       'card',
       'email',
       'status',
@@ -303,5 +361,88 @@ export const getProductHistoryList = async (
     res.status(200).json({ data, success: true });
   } catch (error) {
     next(error);
+  }
+};
+
+// controllers/productHistoryController.ts
+
+export const bulkUploadProductHistory = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+    const bulkData = [];
+
+    for (const row of data) {
+      const typedRow = row as {
+        upc?: string;
+        orderId?: string;
+        purchaseQuantity?: number | string;
+        receiveQuantity?: number | string;
+        lostQuantity?: number | string;
+        sendToWFS?: number | string;
+        costOfPrice?: number | string;
+        sellPrice?: number | string;
+        date?: string | Date;
+        email?: string;
+        card?: string;
+        status?: string;
+        supplierName?: string;
+        supplierLink?: string;
+      };
+
+      const upc = String(typedRow.upc || '').trim();
+
+      if (!upc) continue;
+
+      const product = await Product.findOne({ upc });
+
+      if (!product) {
+        console.warn(`Product not found for UPC: ${upc}`);
+        continue;
+      }
+
+      const history = {
+        productId: product._id,
+        storeID: req.body.storeID,
+        orderId: typedRow.orderId || '',
+        purchaseQuantity: Number(typedRow.purchaseQuantity || 0),
+        receiveQuantity: Number(typedRow.receiveQuantity || 0),
+        lostQuantity: Number(typedRow.lostQuantity || 0),
+        sendToWFS: Number(typedRow.sendToWFS || 0),
+        costOfPrice: Number(typedRow.costOfPrice || 0),
+        sellPrice: Number(typedRow.sellPrice || 0),
+        date: typedRow.date ? new Date(typedRow.date) : new Date(),
+        email: typedRow.email || '',
+        card: typedRow.card || '',
+        status: typedRow.status || '',
+        supplier: {
+          name: typedRow.supplierName || '',
+          link: typedRow.supplierLink || '',
+        },
+      };
+
+      bulkData.push(history);
+    }
+
+    if (bulkData.length > 0) {
+      await productHistoryModel.insertMany(bulkData);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `${bulkData.length} records inserted successfully`,
+    });
+  } catch (err) {
+    next(err);
   }
 };

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import authenticateUser from '../middlewares/authenticateUser.js';
-import upload from '../middlewares/multer.js';
+import { upload } from '../middlewares/multer.js';
 import protectAdmin from '../middlewares/protectAdmin.js';
 import {
   createUser,
