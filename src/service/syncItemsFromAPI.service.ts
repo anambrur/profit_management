@@ -84,7 +84,7 @@ const syncItemsFromAPI = async (
         link: '',
       },
       status: '',
-      upc: '',
+      upc: filteredItems[index]?.upc || '',
     }));
 
     // 7. Insert into productHistoryModel
