@@ -367,7 +367,6 @@ export const getProductHistoryList = async (
 };
 
 // controllers/productHistoryController.ts
-
 // export const bulkUploadProductHistory = async (
 //   req: Request,
 //   res: Response,
@@ -378,80 +377,148 @@ export const getProductHistoryList = async (
 //       return res.status(400).json({ message: 'No file uploaded' });
 //     }
 
-//     const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+//     // Read the file with proper options
+//     const workbook = xlsx.read(req.file.buffer, {
+//       type: 'buffer',
+//       cellDates: true,
+//       sheetStubs: true,
+//     });
 
+//     // Get the first sheet
 //     const sheetName = workbook.SheetNames[0];
-//     const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+//     const worksheet = workbook.Sheets[sheetName];
 
-//     // console.log('workbook',workbook);
-//     // console.log('sheetName',sheetName);
-//     console.log('data',data);
+//     // Convert to JSON with explicit header row handling
+//     const data = xlsx.utils.sheet_to_json(worksheet, {
+//       header: [
+//         'date',
+//         'picture',
+//         'orderId',
+//         'link',
+//         'purchase',
+//         'received',
+//         'lostDamaged',
+//         'sentToWfs',
+//         'remaining',
+//         'costPerItem',
+//         'totalCost',
+//         'sentToWfsCost',
+//         'remainingCost',
+//         'status',
+//         'upc',
+//         'wfsStatus',
+//       ],
+//       range: 2, // Skip the first two rows (formulas and headers)
+//       defval: null,
+//       raw: false, // Get formatted strings
+//     });
+
+//     console.log('First few rows of parsed data:', data.slice(0, 5));
 
 //     const bulkData = [];
+//     const skippedProducts = [];
+//     const errors = [];
+//     const existingItems = [];
 
-//     for (const row of data) {
-//       const typedRow = row as {
-//         upc?: string;
-//         orderId?: string;
-//         purchaseQuantity?: number | string;
-//         receiveQuantity?: number | string;
-//         lostQuantity?: number | string;
-//         sendToWFS?: number | string;
-//         costOfPrice?: number | string;
-//         sellPrice?: number | string;
-//         date?: string | Date;
-//         email?: string;
-//         card?: string;
-//         status?: string;
-//         supplierName?: string;
-//         supplierLink?: string;
-//       };
+//     for (const [index, row] of data.entries()) {
+//       try {
+//         // Skip empty rows or rows without essential data
+//         if (!row.upc && !row.orderId) continue;
 
-//       const upc = String(typedRow.upc || '').trim();
+//         const upc = String(row.upc || '').trim();
+//         if (!upc || upc === 'UPC') continue; // Skip header row if it slipped through
 
-//       if (!upc) continue;
+//         // const product = await Product.findOne({ sku: upc });
+//         const product = await Product.findOne({
+//           $or: [{ sku: upc }, { upc: upc }],
+//         });
 
-//       const product = await Product.findOne({ upc });
+//         if (!product) {
+//           skippedProducts.push({ upc, row });
+//           continue;
+//         }
 
-//       if (!product) {
-//         console.warn(`Product not found for UPC: ${upc}`);
-//         continue;
+//         // Check if the item already exists
+//         const existingItem = await productHistoryModel.findOne({
+//           productId: product._id,
+//           storeID: req.body.storeID,
+//           orderId: String(row.orderId || '').trim(),
+//         });
+//         if (existingItem) {
+//           existingItems.push({ upc, row });
+//           continue;
+//         }
+
+//         // Helper function to safely parse numbers
+//         const parseNumber = (value: any) => {
+//           if (value === null || value === undefined || value === '') return 0;
+//           if (typeof value === 'string' && value.startsWith('=')) return 0;
+//           const num = Number(value);
+//           return isNaN(num) ? 0 : num;
+//         };
+
+//         const history = {
+//           productId: product._id,
+//           storeID: req.body.storeID,
+//           orderId: String(row.orderId || '').trim(),
+//           purchaseQuantity: parseNumber(row.purchase),
+//           receiveQuantity: parseNumber(row.received),
+//           lostQuantity: parseNumber(row.lostDamaged),
+//           sendToWFS: parseNumber(row.sentToWfs),
+//           costOfPrice: parseNumber(row.costPerItem),
+//           totalPrice: String(row.totalCost || '0'),
+//           date: row.date ? new Date(row.date) : new Date(),
+//           status: String(row.status || ''),
+//           upc: upc,
+//           supplier: {
+//             name: '', // You can add supplier name if available
+//             link: String(row.link || ''),
+//           },
+//           email: '',
+//           card: '',
+//           sellPrice: 0,
+//         };
+
+//         bulkData.push(history);
+//       } catch (error) {
+//         errors.push({
+//           rowIndex: index,
+//           row,
+//           error: error.message,
+//         });
 //       }
-
-//       const history = {
-//         productId: product._id,
-//         storeID: req.body.storeID,
-//         orderId: typedRow.orderId || '',
-//         purchaseQuantity: Number(typedRow.purchaseQuantity || 0),
-//         receiveQuantity: Number(typedRow.receiveQuantity || 0),
-//         lostQuantity: Number(typedRow.lostQuantity || 0),
-//         sendToWFS: Number(typedRow.sendToWFS || 0),
-//         costOfPrice: Number(typedRow.costOfPrice || 0),
-//         sellPrice: Number(typedRow.sellPrice || 0),
-//         date: typedRow.date ? new Date(typedRow.date) : new Date(),
-//         email: typedRow.email || '',
-//         card: typedRow.card || '',
-//         status: typedRow.status || '',
-//         supplier: {
-//           name: typedRow.supplierName || '',
-//           link: typedRow.supplierLink || '',
-//         },
-//       };
-
-//       bulkData.push(history);
 //     }
 
-//     console.log('bulkData',bulkData);
+//     console.log(`Processing results:
+//       - Valid records: ${bulkData.length}
+//       - Skipped products: ${skippedProducts.length}
+//       - Existing items: ${existingItems.length}
+//       - Errors: ${errors.length}`);
 
 //     if (bulkData.length > 0) {
-//       await productHistoryModel.insertMany(bulkData);
+//       await productHistoryModel
+//         .insertMany(bulkData, { ordered: false })
+//         .catch((err) => {
+//           console.error('Bulk insert error:', err);
+//           errors.push({ error: 'Bulk insert failed', details: err.message });
+//         });
 //     }
 
 //     res.status(200).json({
 //       success: true,
-//       message: `${bulkData.length} records inserted successfully`,
+//       message: `${bulkData.length} records processed`,
+//       details: {
+//         inserted: bulkData.length,
+//         skippedProducts: skippedProducts.length,
+//         existingItems: existingItems.length,
+//         errors: errors.length,
+//       },
+//       skippedProducts: skippedProducts.slice(0, 10), // Only return first 10 for response
+//       existingItems: existingItems.slice(0, 10),
+//       sampleErrors: errors.slice(0, 5),
 //     });
 //   } catch (err) {
+//     console.error('Processing failed:', err);
 //     next(err);
 //   }
 // };
@@ -502,9 +569,10 @@ export const bulkUploadProductHistory = async (
       raw: false, // Get formatted strings
     });
 
-    console.log('First few rows of parsed data:', data.slice(0, 5));
+    // console.log('First few rows of parsed data:', data.slice(0, 5));
 
-    const bulkData = [];
+    const bulkUpdates = [];
+    const bulkInserts = [];
     const skippedProducts = [];
     const errors = [];
 
@@ -514,9 +582,13 @@ export const bulkUploadProductHistory = async (
         if (!row.upc && !row.orderId) continue;
 
         const upc = String(row.upc || '').trim();
-        if (!upc || upc === 'UPC') continue; // Skip header row if it slipped through
+        if (!upc || upc === 'UPC') continue;
 
-        const product = await Product.findOne({ upc });
+        // Find product by SKU or UPC
+        const product = await Product.findOne({
+          $or: [{ sku: upc }, { upc: upc }],
+        });
+
         if (!product) {
           skippedProducts.push({ upc, row });
           continue;
@@ -530,29 +602,86 @@ export const bulkUploadProductHistory = async (
           return isNaN(num) ? 0 : num;
         };
 
-        const history = {
+        const orderId = String(row.orderId || '').trim();
+        const purchaseQuantity = parseNumber(row.purchase);
+        const receiveQuantity = parseNumber(row.received);
+        const lostQuantity = parseNumber(row.lostDamaged);
+        const sendToWFS = parseNumber(row.sentToWfs);
+        const costOfPrice = parseNumber(row.costPerItem);
+        console.log('costOfPrice', costOfPrice);
+
+        // First try to find existing records with zero quantities
+        const zeroQuantityItem = await productHistoryModel.findOne({
           productId: product._id,
           storeID: req.body.storeID,
-          orderId: String(row.orderId || '').trim(),
-          purchaseQuantity: parseNumber(row.purchase),
-          receiveQuantity: parseNumber(row.received),
-          lostQuantity: parseNumber(row.lostDamaged),
-          sendToWFS: parseNumber(row.sentToWfs),
-          costOfPrice: parseNumber(row.costPerItem),
-          totalPrice: String(row.totalCost || '0'),
-          date: row.date ? new Date(row.date) : new Date(),
-          status: String(row.status || ''),
-          upc: upc,
-          supplier: {
-            name: '', // You can add supplier name if available
-            link: String(row.link || ''),
-          },
-          email: '',
-          card: '',
-          sellPrice: 0,
-        };
+          purchaseQuantity: 0,
+          receiveQuantity: 0,
+          lostQuantity: 0,
+          sendToWFS: 0,
+        });
 
-        bulkData.push(history);
+        if (zeroQuantityItem) {
+          // Update the existing zero-quantity record
+          bulkUpdates.push({
+            updateOne: {
+              filter: { _id: zeroQuantityItem._id },
+              update: {
+                $set: {
+                  orderId,
+                  purchaseQuantity,
+                  receiveQuantity,
+                  lostQuantity,
+                  sendToWFS,
+                  costOfPrice,
+                  totalPrice: String(row.totalCost || '0'),
+                  date: row.date ? new Date(row.date) : new Date(),
+                  status: String(row.status || ''),
+                  upc: upc,
+                  supplier: {
+                    name: '',
+                    link: String(row.link || ''),
+                  },
+                  email: '',
+                  card: '',
+                  sellPrice: 0,
+                },
+              },
+            },
+          });
+        } else {
+          // Check if exact record already exists (non-zero quantities)
+          const existingItem = await productHistoryModel.findOne({
+            productId: product._id,
+            storeID: req.body.storeID,
+            orderId,
+          });
+
+          if (!existingItem) {
+            // Insert new record
+            bulkInserts.push({
+              productId: product._id,
+              storeID: req.body.storeID,
+              orderId,
+              purchaseQuantity,
+              receiveQuantity,
+              lostQuantity,
+              sendToWFS,
+              costOfPrice,
+              totalPrice: String(row.totalCost || '0'),
+              date: row.date ? new Date(row.date) : new Date(),
+              status: String(row.status || ''),
+              upc: upc,
+              supplier: {
+                name: '',
+                link: String(row.link || ''),
+              },
+              email: '',
+              card: '',
+              sellPrice: 0,
+            });
+          }
+          // Else: exact record exists, skip it
+        }
       } catch (error) {
         errors.push({
           rowIndex: index,
@@ -563,28 +692,40 @@ export const bulkUploadProductHistory = async (
     }
 
     console.log(`Processing results:
-      - Valid records: ${bulkData.length}
+      - Updates: ${bulkUpdates.length}
+      - Inserts: ${bulkInserts.length}
       - Skipped products: ${skippedProducts.length}
       - Errors: ${errors.length}`);
 
-    if (bulkData.length > 0) {
-      await productHistoryModel
-        .insertMany(bulkData, { ordered: false })
-        .catch((err) => {
-          console.error('Bulk insert error:', err);
-          errors.push({ error: 'Bulk insert failed', details: err.message });
-        });
-    }
+    // Execute bulk operations
+    const updateResults =
+      bulkUpdates.length > 0
+        ? await productHistoryModel.bulkWrite(bulkUpdates)
+        : null;
+
+    const insertResults =
+      bulkInserts.length > 0
+        ? await productHistoryModel.insertMany(bulkInserts, { ordered: false })
+        : null;
 
     res.status(200).json({
       success: true,
-      message: `${bulkData.length} records processed`,
+      message: `Processed ${bulkUpdates.length + bulkInserts.length} records`,
       details: {
-        inserted: bulkData.length,
+        updated: bulkUpdates.length,
+        inserted: bulkInserts.length,
         skippedProducts: skippedProducts.length,
         errors: errors.length,
       },
-      skippedProducts: skippedProducts.slice(0, 10), // Only return first 10 for response
+      updateResults: updateResults
+        ? {
+            matchedCount: updateResults.matchedCount,
+            modifiedCount: updateResults.modifiedCount,
+          }
+        : null,
+      insertResults: insertResults ? { count: bulkInserts.length } : null,
+      skippedProducts: skippedProducts.slice(0, 10),
+      updateProduct: bulkUpdates,
       sampleErrors: errors.slice(0, 5),
     });
   } catch (err) {
