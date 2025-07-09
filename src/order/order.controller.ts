@@ -83,17 +83,44 @@ export const getAllOrders = expressAsyncHandler(
 export const getOrders = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // Parse pagination params
       const page = Math.max(Number(req.query.page) || 1, 1);
       const limit = Math.min(Number(req.query.limit) || 20, 100);
       const skip = (page - 1) * limit;
 
-      // Get total count
-      const total = await orderModel.countDocuments();
+      const {
+        search = '',
+        storeId,
+        status,
+      } = req.query as {
+        search?: string;
+        storeId?: string;
+        status?: string;
+      };
 
-      // Get paginated data
+      // Build dynamic filter
+      const filter: any = {};
+
+      if (storeId) {
+        filter.storeId = storeId;
+      }
+
+      if (status) {
+        filter.status = status;
+      }
+
+      if (search) {
+        const regex = new RegExp(search, 'i'); // Case-insensitive search
+        filter.$or = [
+          { customerOrderId: regex },
+          { 'products.productName': regex },
+          { 'products.productSKU': regex },
+        ];
+      }
+
+      const total = await orderModel.countDocuments(filter);
+
       const orders = await orderModel
-        .find({})
+        .find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit);

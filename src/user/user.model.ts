@@ -1,3 +1,4 @@
+// models/User.js
 import mongoose from 'mongoose';
 
 const userSchema = new mongoose.Schema(
@@ -13,26 +14,20 @@ const userSchema = new mongoose.Schema(
     },
     username: {
       type: String,
-      required: true,
       unique: true,
     },
     phone: {
       type: String,
-      required: true,
       unique: true,
     },
-    address: {
-      type: String,
-    },
+    address: { type: String },
     password: {
       type: String,
       required: true,
     },
-    role: {
-      type: String,
-      enum: ['admin', 'user', 'manager'],
-      default: 'user',
-    },
+
+    roles: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Role' }], // <-- updated for dynamic roles
+
     status: {
       type: String,
       enum: ['active', 'inactive'],
@@ -55,4 +50,28 @@ const userSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// 🔐 Methods for Spatie-style RBAC
+userSchema.methods.assignRole = async function (roleNames: any) {
+  const Role = mongoose.model('Role');
+  const roles = await Role.find({ name: { $in: roleNames } });
+  this.roles = [...new Set([...this.roles, ...roles.map((r) => r._id)])];
+  return this.save();
+};
+
+userSchema.methods.hasRole = async function (roleName: string) {
+  await this.populate('roles');
+  return this.roles.some((role: any) => role.name === roleName);
+};
+
+userSchema.methods.hasPermissionTo = async function (permissionName: any) {
+  await this.populate({
+    path: 'roles',
+    populate: { path: 'permissions' },
+  });
+  return this.roles.some((role: any) =>
+    role.permissions.some((perm: any) => perm.name === permissionName)
+  );
+};
+
 export default mongoose.model('User', userSchema);

@@ -3,6 +3,7 @@ import createHttpError from 'http-errors';
 import mongoose from 'mongoose';
 import xlsx from 'xlsx';
 import Product from '../product/product.model.js';
+import { ProductHistoryRow } from '../types/types.js';
 import productHistoryModel from './productHistory.model.js';
 export const createProductHistory = async (
   req: Request,
@@ -545,7 +546,7 @@ export const bulkUploadProductHistory = async (
     const worksheet = workbook.Sheets[sheetName];
 
     // Convert to JSON with explicit header row handling
-    const data = xlsx.utils.sheet_to_json(worksheet, {
+    const data = xlsx.utils.sheet_to_json<ProductHistoryRow>(worksheet, {
       header: [
         'date',
         'picture',
@@ -601,14 +602,21 @@ export const bulkUploadProductHistory = async (
           const num = Number(value);
           return isNaN(num) ? 0 : num;
         };
+        const parseNumber2 = (value: any) => {
+          if (value === null || value === undefined || value === '') return 0;
+          if (typeof value === 'string') {
+            value = value.replace(/[$,]/g, '').trim();
+          }
+          const num = Number(value);
+          return isNaN(num) ? 0 : num;
+        };
 
         const orderId = String(row.orderId || '').trim();
         const purchaseQuantity = parseNumber(row.purchase);
         const receiveQuantity = parseNumber(row.received);
         const lostQuantity = parseNumber(row.lostDamaged);
         const sendToWFS = parseNumber(row.sentToWfs);
-        const costOfPrice = parseNumber(row.costPerItem);
-        console.log('costOfPrice', costOfPrice);
+        const costOfPrice = parseNumber2(row.costPerItem);
 
         // First try to find existing records with zero quantities
         const zeroQuantityItem = await productHistoryModel.findOne({
@@ -682,7 +690,7 @@ export const bulkUploadProductHistory = async (
           }
           // Else: exact record exists, skip it
         }
-      } catch (error) {
+      } catch (error: any) {
         errors.push({
           rowIndex: index,
           row,

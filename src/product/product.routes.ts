@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import authenticateUser from '../middlewares/authenticateUser.js';
 import {
   // addSingleProductHistory,
   getAllProducts,
@@ -13,6 +14,7 @@ productRouter.route('/get-all-products').get(getAllProducts);
 //   .route('/add-single-product-history/:id')
 //   .put(addSingleProductHistory);
 
-productRouter.route('/get-products').get(getMyDbAllProduct);
+// @ts-ignore
+productRouter.route('/get-products').get(authenticateUser, getMyDbAllProduct);
 
 export default productRouter;
