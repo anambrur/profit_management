@@ -87,3 +87,22 @@ export interface ShipToAddress {
     completeName: string;
   };
 }
+
+export interface ProductHistoryRow {
+  date: string | Date | null;
+  picture: string | null;
+  orderId: string | null;
+  link: string | null;
+  purchase: string | number | null;
+  received: string | number | null;
+  lostDamaged: string | number | null;
+  sentToWfs: string | number | null;
+  remaining: string | number | null;
+  costPerItem: string | number | null;
+  totalCost: string | number | null;
+  sentToWfsCost: string | number | null;
+  remainingCost: string | number | null;
+  status: string | null;
+  upc: string | null;
+  wfsStatus: string | null;
+}
