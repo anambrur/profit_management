@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { NextFunction, Request, Response } from 'express';
 import expressAsyncHandler from 'express-async-handler';
 import createHttpError from 'http-errors';

@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import authenticateUser from '../middlewares/authenticateUser.js';
-import { upload } from '../middlewares/multer.js';
-import protectAdmin from '../middlewares/protectAdmin.js';
+import authenticateUser from '../middlewares/authenticateUser';
+import { upload } from '../middlewares/multer';
 import {
   createUser,
   deleteUser,
@@ -10,45 +9,78 @@ import {
   loginUser,
   logoutUser,
   updateUser,
-} from './user.controller.js';
+} from './user.controller';
+import {
+  hasPermission,
+  hasAnyPermission,
+  hasRole,
+  hasAnyRole,
+} from '../middlewares/checkPermission';
 
 const userRouter = Router();
 
-// ✅ Create User
-userRouter.route('/register').post(
-  // // @ts-ignore,
-  // authenticateUser,
-  // protectAdmin,
+// ✅ Create User (Admin only)
+userRouter.post(
+  '/register',
+  authenticateUser,
+  // @ts-ignore
+  hasRole('admin'), // Only admin can register users
   upload.single('profileImage'),
   createUser
 );
-// ✅ Login User
-userRouter.route('/login').post(loginUser);
-// ✅ Logout User
-userRouter.route('/logout').post(logoutUser);
-// ✅ Get All User
-userRouter.route('/all-user').get(
-  // @ts-ignore
+
+// ✅ Login User (Public)
+userRouter.post('/login', loginUser);
+
+// ✅ Logout User (Authenticated users only)
+userRouter.post(
+  '/logout',
+  authenticateUser,
+  logoutUser
+);
+
+// ✅ Get All Users (Admin or users with view permission)
+userRouter.get(
+  '/all-user',
+  authenticateUser,
+  hasAnyPermission(['user:view', 'user:admin']),
   getAllUser
 );
-// ✅ Delete User
-userRouter.route('/delete-user/:id').delete(
-  // @ts-ignore
+
+// ✅ Delete User (Admin only)
+userRouter.delete(
+  '/delete-user/:id',
   authenticateUser,
-  protectAdmin,
+  hasRole('admin'), // Only admin can delete users
   deleteUser
 );
-// ✅ Update User
-userRouter.route('/update-user/:id').put(
-  // @ts-ignore
-  // authenticateUser,
+
+// ✅ Update User (Own profile or admin)
+userRouter.put(
+  '/update-user/:id',
+  authenticateUser,
   upload.single('profileImage'),
+  async (req, res, next) => {
+    // Allow if admin or updating own profile
+    if (req.user?.roles.includes('admin') || req.user?._id === req.params.id) {
+      return next();
+    }
+    return res.status(403).json({ message: 'Forbidden' });
+  },
   updateUser
 );
-// ✅ get user by id
-userRouter.route('/get-user/:id').get(
-  // // @ts-ignore
-  // authenticateUser,
+
+// ✅ Get user by ID (Admin or own profile)
+userRouter.get(
+  '/get-user/:id',
+  authenticateUser,
+  async (req, res, next) => {
+    // Allow if admin or viewing own profile
+    if (req.user?.roles.includes('admin') || req.user?._id === req.params.id) {
+      return next();
+    }
+    return res.status(403).json({ message: 'Forbidden' });
+  },
   getUser
 );
 

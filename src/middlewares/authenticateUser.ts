@@ -1,36 +1,60 @@
 import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import envConfig from '../config/envConfig.js';
+import envConfig from '../config/envConfig';
+import { IUser } from '../types/role-permission'; // Import your IUser interface
+import expressAsyncHandler from 'express-async-handler';
+import createHttpError from 'http-errors';
+import userModel from '../user/user.model';
 
-interface UserPayload {
+declare global {
+  namespace Express {
+    interface Request {
+      user?: IUser; // Use your existing IUser interface
+    }
+  }
+}
+
+interface JwtPayload {
   id: string;
+  roles?: string[];
   iat: number;
   exp: number;
 }
 
-const authenticateUser = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  const token = req.cookies.token;
+export const authenticateUser = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const token =
+        req.cookies?.token ||
+        req.header('Authorization')?.replace('Bearer ', '');
 
-  if (!token) {
-    return res.status(401).json({ message: 'Unauthorized: No token found' });
-  }
+      if (!token) {
+        return next(createHttpError(401, 'Unauthorized - No token provided'));
+      }
 
-  try {
-    const decoded = jwt.verify(
-      token,
-      envConfig.jwtSecret as string
-    ) as UserPayload;
-    req.user = { id: decoded.id };
-    next();
-  } catch (error) {
-    return res
-      .status(401)
-      .json({ message: 'Unauthorized: Token expired or invalid' });
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET as string
+      ) as JwtPayload;
+
+
+      const user = await userModel
+        .findById(decoded.id)
+        .select('-password -refreshToken');
+
+      if (!user) {
+        return next(createHttpError(401, 'Unauthorized - User not found'));
+      }
+
+      // Make sure to attach the full Mongoose model with methods
+      req.user = user;
+
+      
+      next();
+    } catch (error) {
+      next(createHttpError(401, 'Unauthorized - Invalid token'));
+    }
   }
-};
+);
 
 export default authenticateUser;
