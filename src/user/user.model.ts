@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // models/User.js
 import mongoose from 'mongoose';
 

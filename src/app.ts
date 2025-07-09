@@ -7,7 +7,6 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import envConfig from './config/envConfig.js';
-import fulfillmentRouter from './fulfillment/fullfillment.route.js';
 import globalError from './middlewares/globalError.js';
 import orderRouter from './order/order.route.js';
 import productRouter from './product/product.routes.js';
@@ -15,6 +14,8 @@ import productHistoryRouter from './productHistory/productHistory.route.js';
 import profitRouter from './profit_analyzer/profit.route.js';
 import storeRouter from './store/store.route.js';
 import userRouter from './user/user.routes.js';
+import roleRouter from './role/role.routes.js';
+import permissionRouter from './permission/permission.routes.js';
 
 const app: Application = express();
 
@@ -56,8 +57,9 @@ app.use('/api/profits', profitRouter);
 app.use('/api/stores', storeRouter);
 app.use('/api/products', productRouter);
 app.use('/api/orders', orderRouter);
-app.use('/api/fulfillments', fulfillmentRouter);
 app.use('/api/product-history', productHistoryRouter);
+app.use('/api/roles', roleRouter);
+app.use('/api/permissions', permissionRouter);
 
 // Global Error Handler
 app.use(globalError);
