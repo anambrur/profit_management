@@ -7,6 +7,13 @@ const seed = async () => {
   try {
     await connectDB();
 
+    // Clear existing data first
+    await Promise.all([
+      permissionModel.deleteMany({}),
+      roleModel.deleteMany({}),
+      userModel.deleteMany({ email: 'admin@gmail.com' }) // Only delete the admin user if it exists
+    ]);
+
     const model = [
       'user',
       'role',
@@ -20,12 +27,12 @@ const seed = async () => {
 
     const actions = ['create', 'view', 'edit', 'delete'];
 
-    // Create permissions and collect their IDs
+    // Create permissions and collect their names
     const permissions = [];
     for (const m of model) {
       for (const a of actions) {
         const permission = await permissionModel.create({ name: `${m}:${a}` });
-        permissions.push(permission.name); // or permission._id if you need IDs
+        permissions.push(permission.name);
       }
     }
 
@@ -43,8 +50,9 @@ const seed = async () => {
 
     // Create admin user
     const admin = await userModel.create({
+      name: 'Admin',
       email: 'admin@gmail.com',
-      password: '12345678', // Make sure to hash this properly in your user model
+      password: '12345678', // Note: This should be hashed in your user model's pre-save hook
     });
 
     if (typeof admin.assignRole === 'function') {
@@ -61,9 +69,9 @@ const seed = async () => {
   } catch (error) {
     console.error('❌ Seeding failed:', error);
   } finally {
-    process.exit();
+    // Note: Removing process.exit() as it would terminate your server
+    // Only use process.exit() if this is meant to be a standalone script
   }
 };
-
 
 export default seed;

@@ -1,9 +1,19 @@
-// models/Permission.js
-import mongoose from 'mongoose'
+import mongoose, { Schema } from 'mongoose';
+import { IPermission } from '../types/role-permission';
 
-const permissionSchema = new mongoose.Schema({
-  name: { type: String, required: true, unique: true }, // e.g. 'user:create'
-  description: { type: String },
-})
+const permissionSchema: Schema = new mongoose.Schema({
+  name: { 
+    type: String, 
+    required: true, 
+    unique: true,
+    index: true 
+  },
+  description: { 
+    type: String,
+    default: ''
+  },
+}, {
+  timestamps: true
+});
 
-export default mongoose.model('Permission', permissionSchema)
+export default mongoose.model<IPermission>('Permission', permissionSchema);

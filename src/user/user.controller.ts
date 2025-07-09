@@ -1,65 +1,100 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import bcrypt from 'bcryptjs';
 import { NextFunction, Request, Response } from 'express';
 import expressAsyncHandler from 'express-async-handler';
 import fs from 'fs';
 import createHttpError from 'http-errors';
 import jwt from 'jsonwebtoken';
-import cloudinary from '../config/cloudinary.js';
-import envConfig from '../config/envConfig.js';
-import uploadLocalFileToCloudinary from '../service/fileUpload.service.js';
-import userModel from './user.model.js';
+import cloudinary from '../config/cloudinary';
+import envConfig from '../config/envConfig';
+import uploadLocalFileToCloudinary from '../service/fileUpload.service';
+import userModel from './user.model';
+import { IUser } from '../types/role-permission';
+import roleModel from '../role/role.model';
 
-//  ✅ Create User
+// Helper function for role/permission checks
+export const checkAdminOrSelf = async (
+  req: Request,
+  userId: string
+): Promise<boolean> => {
+  if (!req.user) return false;
+
+  const user = req.user as IUser;
+
+  // Check if user is admin or the same user being modified
+  return user.hasRole('admin') || user._id.toString() === userId;
+};
+
+// ✅ Create User (Admin only)
 export const createUser = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { name, email, username, phone, address, password, role, status } =
+    const { name, email, username, phone, address, password, status } =
       req.body;
 
     if (!name || !email || !username || !phone || !password) {
       return next(createHttpError(400, 'All fields are required'));
     }
+
     try {
-      const existingUser = await userModel.findOne({ email });
-      if (existingUser) {
+      // Check permissions
+      if (!(await checkAdminOrSelf(req, ''))) {
+        return next(createHttpError(403, 'Forbidden - Admin access required'));
+      }
+
+      // Check existing users
+      const [existingEmail, existingUsername] = await Promise.all([
+        userModel.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } }),
+        userModel.findOne({ username }),
+      ]);
+
+      if (existingEmail)
         return next(createHttpError(400, 'Email already exists'));
-      }
-
-      const existingUsername = await userModel.findOne({ username });
-      if (existingUsername) {
+      if (existingUsername)
         return next(createHttpError(400, 'Username already exists'));
-      }
 
-      // ✅ Handle Image Upload
-      let imageUrl = '';
-      let profileImagePublicId = '';
+      // Handle image upload
+      let imageData = { url: '', publicId: '' };
       if (req.file) {
         const result = await uploadLocalFileToCloudinary(
           req.file.path,
           'users_profile_images'
         );
         await fs.promises.unlink(req.file.path);
-        imageUrl = (result as { secure_url: string }).secure_url;
-        profileImagePublicId = (result as { public_id: string }).public_id;
+        imageData = {
+          url: (result as { secure_url: string }).secure_url,
+          publicId: (result as { public_id: string }).public_id,
+        };
       }
 
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const roleId = await roleModel.findOne({ name: req.body.roles });
+      if (!roleId) {
+        return next(createHttpError(404, 'Role not found'));
+      }
 
+      // Create user
       const newUser = await userModel.create({
         name,
         email,
         username,
         phone,
         address,
-        password: hashedPassword,
-        role,
-        status,
-        profileImage: imageUrl,
-        profileImagePublicId: profileImagePublicId,
+        password: await bcrypt.hash(password, 12),
+        status: status || 'active',
+        profileImage: imageData.url,
+        profileImagePublicId: imageData.publicId,
+        roles: roleId._id,
       });
 
-      res
-        .status(201)
-        .json({ message: 'User created successfully', newUser, success: true });
+      // Omit sensitive data in response
+      const userResponse = newUser.toObject();
+      delete userResponse.password;
+      delete userResponse.profileImagePublicId;
+
+      res.status(201).json({
+        success: true,
+        message: 'User created successfully',
+        user: userResponse,
+      });
     } catch (error) {
       next(error);
     }
@@ -71,181 +106,244 @@ export const loginUser = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { email, password } = req.body;
 
+    if (!email || !password) {
+      return next(createHttpError(400, 'Email and password are required'));
+    }
+    console.log('body', password);
+
     try {
-      if (!email || !password) {
-        return next(createHttpError(400, 'All fields are required'));
-      }
+      const user = await userModel
+        .findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } })
+        .select('+password +status +roles')
+        .populate('roles');
 
-      const user = await userModel.findOne({ email });
       if (!user) {
-        return next(createHttpError(404, 'User not found'));
+        return next(createHttpError(401, 'User not found'));
       }
 
-      const isPasswordValid = await bcrypt.compare(password, user.password);
-      if (!isPasswordValid) {
+      console.log('user', user);
+
+      if (user.status !== 'active') {
+        return next(createHttpError(403, 'Account is not active'));
+      }
+
+      if (!user.comparePassword(password)) {
         return next(createHttpError(401, 'Invalid password'));
       }
 
-      // ✅ Update lastLogin
+      // Update last login
       user.lastLogin = new Date();
       await user.save();
 
-      // ✅ Create JWT token
-      const token = jwt.sign({ id: user._id }, envConfig.jwtSecret as string, {
-        expiresIn: '1d',
+      // Generate token
+      const token = jwt.sign(
+        {
+          id: user._id,
+          roles: user.roles.map((role: any) => role.name),
+        },
+        envConfig.jwtSecret as string,
+        { expiresIn: '1d', algorithm: 'HS256' }
+      );
+
+      // Secure cookie settings
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: envConfig.nodeEnv === 'production',
+        sameSite: 'strict',
+        maxAge: 24 * 60 * 60 * 1000,
+        // domain: envConfig.cookieDomain,
+        path: '/',
       });
 
-      res.cookie('token', token, {
-        httpOnly: false,
-        secure: true, // only works on HTTPS
-        sameSite: 'none', // allow cross-origin if needed
-        maxAge: 24 * 60 * 60 * 1000, // 1 day
-      });
-      // ✅ Send token in HTTP-Only Cookie
+      // Response data
+      const userData = {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        roles: user.roles,
+        profileImage: user.profileImage,
+        lastLogin: user.lastLogin,
+      };
+
       res.status(200).json({
-        message: 'Login successful',
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          username: user.username,
-          role: user.role,
-          status: user.status,
-          lastLogin: user.lastLogin,
-          profileImage: user.profileImage,
-        },
         success: true,
+        message: 'Login successful',
+        user: userData,
+        token: envConfig.nodeEnv === 'development' ? token : undefined,
       });
     } catch (error) {
-      next(error);
+      next(createHttpError(500, 'Login failed. Please try again later'));
     }
   }
 );
 
 // ✅ Logout User
 export const logoutUser = expressAsyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response) => {
     res.clearCookie('token', {
-      httpOnly: false,
-      secure: true, // same as cookie set
-      sameSite: 'none', // same as cookie set
-      path: '/', // default path
+      httpOnly: true,
+      secure: envConfig.nodeEnv === 'production',
+      sameSite: 'strict',
+      path: '/',
     });
-    res.status(200).json({ message: 'Logout successful', success: true });
+    res.status(200).json({ success: true, message: 'Logout successful' });
   }
 );
+
+// ✅ Update User
 export const updateUser = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = await userModel.findById(req.params.id);
-      if (!user) {
-        return next(createHttpError(404, 'User not found'));
+      if (!user) return next(createHttpError(404, 'User not found'));
+
+      // Check permissions
+      const isAdminOrSelf = await checkAdminOrSelf(req, user._id.toString());
+      if (!isAdminOrSelf) {
+        return next(createHttpError(403, 'Forbidden - Not authorized'));
       }
 
-      const {
-        name,
-        email,
-        username,
-        phone,
-        address,
-        role, // coming from body
-        status, // coming from body
-      } = req.body;
-
-      // ✅ Handle file upload (optional)
+      // Handle file upload
       if (req.file) {
         if (user.profileImagePublicId) {
           await cloudinary.uploader.destroy(user.profileImagePublicId);
         }
-
         const result = await uploadLocalFileToCloudinary(
           req.file.path,
           'users_profile_images'
         );
-
         await fs.promises.unlink(req.file.path);
-
         user.profileImage = (result as { secure_url: string }).secure_url;
         user.profileImagePublicId = (result as { public_id: string }).public_id;
       }
 
-      // ✅ Update basic fields
-      user.name = name;
-      user.email = email;
-      user.username = username;
-      user.phone = phone;
-      user.address = address;
+      // Update fields
+      const { name, email, username, phone, address, status } = req.body;
+      user.name = name || user.name;
+      user.email = email || user.email;
+      user.username = username || user.username;
+      user.phone = phone || user.phone;
+      user.address = address || user.address;
 
-      // ✅ Check if current user is admin before allowing role/status change
-      const currentUser = req.user?.id; // Assuming you have authentication middleware
-      const getUser = await userModel.findById(currentUser);
-      if (getUser?.role === 'admin') {
-        user.role = role || user.role;
+      // Only admin can update status and roles
+      if (req.user?.hasRole('admin')) {
         user.status = status || user.status;
+        if (req.body.roles) {
+          await user.assignRole(req.body.roles);
+        }
       }
 
       const updatedUser = await user.save();
+      const userResponse = updatedUser.toObject();
+      delete userResponse.password;
+      delete userResponse.profileImagePublicId;
 
       res.status(200).json({
-        message: 'User updated successfully',
-        updatedUser,
         success: true,
+        message: 'User updated successfully',
+        user: userResponse,
       });
     } catch (error) {
       next(error);
     }
   }
 );
-// ✅ Delete User Admin Only
+
+// ✅ Delete User (Admin only)
 export const deleteUser = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const user = await userModel.findById(req.params.id);
-      if (!user) {
-        return next(createHttpError(404, 'User not found'));
+      if (!req.user?.hasRole('admin')) {
+        return next(createHttpError(403, 'Forbidden - Admin access required'));
       }
+
+      const user = await userModel.findById(req.params.id);
+      if (!user) return next(createHttpError(404, 'User not found'));
 
       if (user.profileImagePublicId) {
         await cloudinary.uploader.destroy(user.profileImagePublicId);
       }
+
       await user.deleteOne();
       res
         .status(200)
-        .json({ message: 'User deleted successfully', success: true });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-// ✅ Get All User Admin Only
-export const getAllUser = expressAsyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const users = await userModel.find();
-      res.status(200).json({ users, success: true });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-// ✅ Get Single User
-export const getUser = expressAsyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const user = await userModel.findById(req.params.id).select('-password');
-      if (!user) {
-        return next(createHttpError(404, 'User not found'));
-      }
-      res.status(200).json({ user, success: true });
+        .json({ success: true, message: 'User deleted successfully' });
     } catch (error) {
       next(error);
     }
   }
 );
 
-export const changePassword = async (user: any, newPassword: string) => {
-  const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(newPassword, salt);
-  user.password = hashedPassword;
-  await user.save();
-};
+// ✅ Get All Users (Admin only)
+export const getAllUser = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user?.hasRole('admin')) {
+        return next(createHttpError(403, 'Forbidden - Admin access required'));
+      }
+
+      const users = await userModel
+        .find()
+        .select('-password -profileImagePublicId')
+        .populate('roles');
+      res.status(200).json({ success: true, users });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ✅ Get Single User
+export const getUser = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = await userModel
+        .findById(req.params.id)
+        .select('-password -profileImagePublicId')
+        .populate('roles');
+
+      if (!user) return next(createHttpError(404, 'User not found'));
+
+      // Check if requester is admin or the user themselves
+      const isAdminOrSelf = await checkAdminOrSelf(req, user._id.toString());
+      if (!isAdminOrSelf) {
+        return next(createHttpError(403, 'Forbidden - Not authorized'));
+      }
+
+      res.status(200).json({ success: true, user });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ✅ Change Password
+export const changePassword = expressAsyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return next(
+        createHttpError(400, 'Both current and new password are required')
+      );
+    }
+
+    try {
+      const user = await userModel.findById(req.user?.id).select('+password');
+      if (!user) return next(createHttpError(404, 'User not found'));
+
+      if (!(await bcrypt.compare(currentPassword, user.password))) {
+        return next(createHttpError(401, 'Current password is incorrect'));
+      }
+
+      user.password = await bcrypt.hash(newPassword, 12);
+      await user.save();
+
+      res
+        .status(200)
+        .json({ success: true, message: 'Password changed successfully' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);

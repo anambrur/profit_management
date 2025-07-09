@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import authenticateUser from '../middlewares/authenticateUser.js';
 import {
-  // addSingleProductHistory,
   getAllProducts,
   getMyDbAllProduct,
 } from './product.controller.js';
@@ -9,12 +8,7 @@ import {
 const productRouter = Router();
 
 productRouter.route('/get-all-products').get(getAllProducts);
-// productRouter.route('/update-product/:id').put(updateProduct);
-// productRouter
-//   .route('/add-single-product-history/:id')
-//   .put(addSingleProductHistory);
 
-// @ts-ignore
 productRouter.route('/get-products').get(authenticateUser, getMyDbAllProduct);
 
 export default productRouter;

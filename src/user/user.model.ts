@@ -1,8 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// models/User.js
-import mongoose from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
+import bcrypt from 'bcrypt';
+import { IUser, IRole, IPermission } from '../types/role-permission';
 
-const userSchema = new mongoose.Schema(
+const SALT_WORK_FACTOR = 10;
+
+const userSchema: Schema = new mongoose.Schema(
   {
     name: {
       type: String,
@@ -12,23 +15,31 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      index: true,
     },
     username: {
       type: String,
       unique: true,
+      sparse: true,
     },
     phone: {
       type: String,
       unique: true,
+      sparse: true,
     },
-    address: { type: String },
+    address: {
+      type: String,
+    },
     password: {
       type: String,
       required: true,
     },
-
-    roles: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Role' }], // <-- updated for dynamic roles
-
+    roles: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'Role',
+      },
+    ],
     status: {
       type: String,
       enum: ['active', 'inactive'],
@@ -52,27 +63,109 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// 🔐 Methods for Spatie-style RBAC
-userSchema.methods.assignRole = async function (roleNames: any) {
-  const Role = mongoose.model('Role');
+// Password hashing middleware
+userSchema.pre<IUser>('save', async function (next) {
+  if (!this.isModified('password')) return next();
+
+  try {
+    const salt = await bcrypt.genSalt(SALT_WORK_FACTOR);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error as Error);
+  }
+});
+
+// Password comparison method
+userSchema.methods.comparePassword = async function (
+  this: IUser,
+  candidatePassword: string
+): Promise<boolean> {
+  return bcrypt.compare(candidatePassword, this.password);
+};
+
+// Assign role to user
+userSchema.methods.assignRole = async function (
+  this: IUser,
+  roleNames: string[]
+): Promise<IUser> {
+  const Role = mongoose.model<IRole>('Role');
   const roles = await Role.find({ name: { $in: roleNames } });
-  this.roles = [...new Set([...this.roles, ...roles.map((r) => r._id)])];
+
+  // Add new roles and remove duplicates
+  this.roles = [
+    ...new Set([
+      ...this.roles.map((id) => id.toString()),
+      ...roles.map((r) => r._id.toString()),
+    ]),
+  ].map((id) => new mongoose.Types.ObjectId(id));
+
   return this.save();
 };
 
-userSchema.methods.hasRole = async function (roleName: string) {
-  await this.populate('roles');
-  return this.roles.some((role: any) => role.name === roleName);
+// Remove roles from user
+userSchema.methods.removeRole = async function (
+  this: IUser,
+  roleNames: string[]
+): Promise<IUser> {
+  const Role = mongoose.model<IRole>('Role');
+  const roles = await Role.find({ name: { $in: roleNames } });
+
+  const roleIds = roles.map((r) => r._id.toString());
+  this.roles = this.roles.filter((id) => !roleIds.includes(id.toString()));
+
+  return this.save();
 };
 
-userSchema.methods.hasPermissionTo = async function (permissionName: any) {
-  await this.populate({
+// Check if user has role
+userSchema.methods.hasRole = async function (
+  this: IUser,
+  roleName: string
+): Promise<boolean> {
+  await this.populate<{ roles: IRole[] }>('roles');
+  return this.roles.some((role) => role.name === roleName);
+};
+
+// Check if user has permission (direct or through roles)
+userSchema.methods.hasPermissionTo = async function (
+  this: IUser,
+  permissionName: string
+): Promise<boolean> {
+  await this.populate<{
+    roles: (IRole & {
+      permissions: IPermission[];
+    })[];
+  }>({
     path: 'roles',
     populate: { path: 'permissions' },
   });
-  return this.roles.some((role: any) =>
-    role.permissions.some((perm: any) => perm.name === permissionName)
+
+  return this.roles.some((role) =>
+    role.permissions?.some(
+      (permission: any) => permission.name === permissionName
+    )
   );
 };
 
-export default mongoose.model('User', userSchema);
+// Check if user has any of the given permissions
+userSchema.methods.hasAnyPermission = async function (
+  this: IUser,
+  permissionNames: string[]
+): Promise<boolean> {
+  await this.populate<{
+    roles: (IRole & {
+      permissions: IPermission[];
+    })[];
+  }>({
+    path: 'roles',
+    populate: { path: 'permissions' },
+  });
+
+  return this.roles.some((role) =>
+    role.permissions?.some((permission: any) =>
+      permissionNames.includes(permission.name)
+    )
+  );
+};
+
+export default mongoose.model<IUser>('User', userSchema);
