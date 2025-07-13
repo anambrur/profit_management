@@ -1,14 +1,19 @@
 import { Router } from 'express';
 import authenticateUser from '../middlewares/authenticateUser.js';
-import {
-  getAllProducts,
-  getMyDbAllProduct,
-} from './product.controller.js';
+import { getAllProducts, getMyDbAllProduct } from './product.controller.js';
+
+import { hasPermission } from '../middlewares/checkPermission';
 
 const productRouter = Router();
 
 productRouter.route('/get-all-products').get(getAllProducts);
 
-productRouter.route('/get-products').get(authenticateUser, getMyDbAllProduct);
+//forntend route
+productRouter.get(
+  '/get-products',
+  authenticateUser,
+  hasPermission('product:view'),
+  getMyDbAllProduct
+);
 
 export default productRouter;

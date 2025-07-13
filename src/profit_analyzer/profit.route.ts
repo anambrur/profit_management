@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Router } from 'express';
 import authenticateUser from '../middlewares/authenticateUser.js';
-import protectAdmin from '../middlewares/protectAdmin.js';
 import { getProfit } from './profit.controller.js';
+
+import { hasPermission } from '../middlewares/checkPermission';
 
 const profitRouter = Router();
 
@@ -12,9 +14,11 @@ function asyncHandler(fn: any) {
       .catch(next);
   };
 }
-profitRouter
-  .route('/get-all-profits')
-  // @ts-ignore
-  .get(authenticateUser, protectAdmin, asyncHandler(getProfit));
+profitRouter.get(
+  '/get-all-profits',
+  authenticateUser,
+  hasPermission('profit-analyzer:view'),
+  asyncHandler(getProfit)
+);
 
 export default profitRouter;

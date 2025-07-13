@@ -6,6 +6,8 @@ import xlsx from 'xlsx';
 import Product from '../product/product.model.js';
 import { ProductHistoryRow } from '../types/types.js';
 import productHistoryModel from './productHistory.model.js';
+import { checkStoreAccess, StoreAccessRequest } from '../utils/store-access.js';
+import storeModel from '../store/store.model.js';
 export const createProductHistory = async (
   req: Request,
   res: Response,
@@ -135,12 +137,139 @@ export const deleteProduct = async (
   }
 };
 
+// export const getAllProductHistory = async (
+//   req: Request,
+//   res: Response,
+//   next: NextFunction
+// ) => {
+//   try {
+//     const search = String(
+//       req.query.sku || req.query.productName || req.query.search || ''
+//     ).trim();
+
+//     const storeID = req.query.storeID as string | undefined;
+
+//     const pipeline: any[] = [
+//       {
+//         $lookup: {
+//           from: 'products',
+//           localField: 'productId',
+//           foreignField: '_id',
+//           as: 'product',
+//         },
+//       },
+//       { $unwind: '$product' },
+//       {
+//         $lookup: {
+//           from: 'stores',
+//           localField: 'storeID',
+//           foreignField: '_id',
+//           as: 'store',
+//         },
+//       },
+//       { $unwind: { path: '$store', preserveNullAndEmptyArrays: true } },
+//     ];
+
+//     if (storeID && mongoose.Types.ObjectId.isValid(storeID)) {
+//       pipeline.push({
+//         $match: { storeID: new mongoose.Types.ObjectId(storeID) },
+//       });
+//     }
+
+//     if (search) {
+//       pipeline.push({
+//         $match: {
+//           $or: [
+//             { 'product.sku': { $regex: search, $options: 'i' } },
+//             { 'product.productName': { $regex: search, $options: 'i' } },
+//           ],
+//         },
+//       });
+//     }
+
+//     // ✅ Clone for count & aggregation
+//     const countPipeline = [...pipeline, { $count: 'total' }];
+//     const totalAggregationPipeline = [
+//       ...pipeline,
+//       {
+//         $group: {
+//           _id: null,
+//           totalPurchase: { $sum: '$purchaseQuantity' },
+//           totalReceive: { $sum: '$receiveQuantity' },
+//           totalLost: { $sum: '$lostQuantity' },
+//           totalSendToWFS: { $sum: '$sendToWFS' },
+//           totalCost: {
+//             $sum: { $multiply: ['$purchaseQuantity', '$costOfPrice'] },
+//           },
+//           totalWFSCost: { $sum: { $multiply: ['$sendToWFS', '$costOfPrice'] } },
+//         },
+//       },
+//       {
+//         $project: {
+//           _id: 0,
+//           totalPurchase: 1,
+//           totalReceive: 1,
+//           totalLost: 1,
+//           totalSendToWFS: 1,
+//           totalCost: 1,
+//           totalWFSCost: 1,
+//           remainingQuantity: {
+//             $subtract: ['$totalReceive', '$totalSendToWFS'],
+//           },
+//           remainingCost: { $subtract: ['$totalCost', '$totalWFSCost'] },
+//         },
+//       },
+//     ];
+
+//     const [countResult, summaryResult] = await Promise.all([
+//       productHistoryModel.aggregate(countPipeline),
+//       productHistoryModel.aggregate(totalAggregationPipeline),
+//     ]);
+
+//     const total = countResult[0]?.total || 0;
+//     const summary = summaryResult[0] || {
+//       totalPurchase: 0,
+//       totalReceive: 0,
+//       totalLost: 0,
+//       totalSendToWFS: 0,
+//       totalCost: 0,
+//       totalWFSCost: 0,
+//       remainingQuantity: 0,
+//       remainingCost: 0,
+//     };
+
+//     // ✅ Pagination
+//     const page = Math.max(Number(req.query.page) || 1, 1);
+//     const limit = Math.min(Number(req.query.limit) || 20, 100);
+//     const skip = (page - 1) * limit;
+
+//     pipeline.push({ $sort: { createdAt: -1 } });
+//     pipeline.push({ $skip: skip });
+//     pipeline.push({ $limit: limit });
+
+//     const products = await productHistoryModel.aggregate(pipeline);
+
+//     res.status(200).json({
+//       success: true,
+//       products,
+//       total,
+//       page,
+//       limit,
+//       totalPages: Math.ceil(total / limit),
+//       summary,
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
 export const getAllProductHistory = async (
-  req: Request,
+  req: StoreAccessRequest | any, // Changed to StoreAccessRequest
   res: Response,
   next: NextFunction
 ) => {
   try {
+    const user = req.user!; // Get the authenticated user
     const search = String(
       req.query.sku || req.query.productName || req.query.search || ''
     ).trim();
@@ -168,11 +297,32 @@ export const getAllProductHistory = async (
       { $unwind: { path: '$store', preserveNullAndEmptyArrays: true } },
     ];
 
-    if (storeID && mongoose.Types.ObjectId.isValid(storeID)) {
+    // Store filtering logic - similar to getOrders
+    if (storeID) {
+      // If specific store is requested, verify access
+      if (!checkStoreAccess(user, storeID)) {
+        return next(createHttpError(403, 'No access to this store'));
+      }
       pipeline.push({
         $match: { storeID: new mongoose.Types.ObjectId(storeID) },
       });
+    } else {
+      // If no store specified, filter by user's allowed stores
+      const allowedStores = await storeModel
+        .find({
+          _id: { $in: user.allowedStores },
+        })
+        .select('_id'); // We need the _id for matching
+
+      pipeline.push({
+        $match: {
+          storeID: {
+            $in: allowedStores.map((store) => store._id),
+          },
+        },
+      });
     }
+
 
     if (search) {
       pipeline.push({
@@ -185,7 +335,7 @@ export const getAllProductHistory = async (
       });
     }
 
-    // ✅ Clone for count & aggregation
+    // Clone for count & aggregation
     const countPipeline = [...pipeline, { $count: 'total' }];
     const totalAggregationPipeline = [
       ...pipeline,
@@ -236,7 +386,7 @@ export const getAllProductHistory = async (
       remainingCost: 0,
     };
 
-    // ✅ Pagination
+    // Pagination
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Number(req.query.limit) || 20, 100);
     const skip = (page - 1) * limit;

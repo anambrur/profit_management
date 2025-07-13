@@ -7,6 +7,11 @@ const productSchema = new mongoose.Schema(
       trim: true,
       index: true, // For filtering by mart
     },
+    storeId: {
+      type: String,
+      required: true,
+      index: true,
+    },
     sku: {
       type: String,
       required: true,

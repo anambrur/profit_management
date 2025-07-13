@@ -1,6 +1,7 @@
 // src/utils/store-access.ts
 import { Request } from 'express';
 import { IUser } from '../types/role-permission';
+import storeModel from '../store/store.model';
 
 export type StoreAccessRequest = Request & {
   user?: IUser;
@@ -8,11 +9,28 @@ export type StoreAccessRequest = Request & {
 };
 
 // Check if user has access to a specific store
-export const checkStoreAccess = (user: IUser, storeId: string): boolean => {
-  return (
-    user.hasPermissionTo('store.view') ||
-    user.allowedStores.some((id) => id.toString() === storeId)
-  );
+// export const checkStoreAccess = (user: IUser, storeId: string): boolean => {
+//   return (
+//     user.hasPermissionTo('store.view') ||
+//     user.allowedStores.some((id) => id.toString() === storeId)
+//   );
+// };
+
+export const checkStoreAccess = async (
+  user: IUser,
+  storeId: string
+): Promise<boolean> => {
+  if (await user.hasPermissionTo('store.view')) {
+    return true;
+  }
+
+  const allowedStores = await storeModel
+    .find({
+      _id: { $in: user.allowedStores },
+    })
+    .select('storeId -_id');
+
+  return allowedStores.some((store) => store.storeId === storeId);
 };
 
 // Get all store IDs user has access to

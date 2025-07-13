@@ -5,6 +5,7 @@ import createHttpError from 'http-errors';
 import syncItemsFromAPI from '../service/syncItemsFromAPI.service.js';
 import storeModel from '../store/store.model.js';
 import productModel from './product.model.js';
+import { checkStoreAccess, StoreAccessRequest } from '../utils/store-access.js';
 
 export const getAllProducts = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -48,13 +49,37 @@ export const getAllProducts = expressAsyncHandler(
   }
 );
 
+
 export const getMyDbAllProduct = expressAsyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: StoreAccessRequest | any, res: Response, next: NextFunction) => {
     try {
+      const user = req.user!;
       const query: any = {};
       const escapeRegex = (text: string) =>
         text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+      // 1. Handle store filtering
+      if (req.query.storeID) {
+        // Specific store requested - verify access
+        const storeID = String(req.query.storeID);
+        if (!checkStoreAccess(user, storeID)) {
+          return next(createHttpError(403, 'No access to this store'));
+        }
+        query.storeId = storeID; // Note: using storeId (not storeID) to match schema
+      } else if (!(await user.hasPermissionTo('store.view'))) {
+        // No specific store - filter by allowed stores
+        const allowedStores = await storeModel
+          .find({
+            _id: { $in: user.allowedStores },
+          })
+          .select('storeId -_id');
+
+        query.storeId = {
+          $in: allowedStores.map((store) => store.storeId),
+        };
+      }
+
+      // 2. Handle other filters
       if (req.query.search) {
         const rawSearch = String(req.query.search).trim();
         const safeSearch = escapeRegex(rawSearch);
@@ -71,13 +96,11 @@ export const getMyDbAllProduct = expressAsyncHandler(
         query.availability = String(req.query.availability);
       }
 
-      if (req.query.storeID) {
-        query.storeID = String(req.query.storeID);
-      }
-
       const page = Math.max(Number(req.query.page) || 1, 1);
       const limit = Math.min(Number(req.query.limit) || 50, 100);
       const skip = (page - 1) * limit;
+
+      console.log(query);
 
       const [products, total] = await Promise.all([
         productModel
@@ -90,7 +113,7 @@ export const getMyDbAllProduct = expressAsyncHandler(
 
       res.status(200).json({
         success: true,
-        message: 'All Product',
+        message: 'All Products',
         pagination: {
           total,
           page,
@@ -100,6 +123,7 @@ export const getMyDbAllProduct = expressAsyncHandler(
         data: products,
       });
     } catch (error) {
+      console.error('Error fetching products:', error);
       next(error);
     }
   }

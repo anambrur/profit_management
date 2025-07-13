@@ -10,12 +10,7 @@ import {
   logoutUser,
   updateUser,
 } from './user.controller';
-import {
-  hasPermission,
-  hasAnyPermission,
-  hasRole,
-  hasAnyRole,
-} from '../middlewares/checkPermission';
+import { hasAnyPermission, hasRole } from '../middlewares/checkPermission';
 
 const userRouter = Router();
 
@@ -55,28 +50,10 @@ userRouter.put(
   '/update-user/:id',
   authenticateUser,
   upload.single('profileImage'),
-  async (req, res, next) => {
-    // Allow if admin or updating own profile
-    if (req.user?.hasRole('admin') || req.user?._id === req.params.id) {
-      return next();
-    }
-    return res.status(403).json({ message: 'Forbidden' });
-  },
   updateUser
 );
 
 // ✅ Get user by ID (Admin or own profile)
-userRouter.get(
-  '/get-user/:id',
-  authenticateUser,
-  async (req, res, next) => {
-    // Allow if admin or viewing own profile
-    if (req.user?.roles.includes('admin') || req.user?._id === req.params.id) {
-      return next();
-    }
-    return res.status(403).json({ message: 'Forbidden' });
-  },
-  getUser
-);
+userRouter.get('/get-user/:id', authenticateUser, getUser);
 
 export default userRouter;

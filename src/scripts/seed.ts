@@ -21,8 +21,8 @@ const seed = async () => {
       'permission',
       'order',
       'product',
-      'productHistory',
-      'profit',
+      'product-history',
+      'profit-analyzer',
       'store',
     ];
 

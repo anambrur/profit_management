@@ -8,21 +8,41 @@ import {
   getSingleStore,
   updateStore,
 } from './store.controller.js';
+import { hasPermission } from '../middlewares/checkPermission';
 
 const storeRouter = Router();
 
-storeRouter
-  .route('/create-store')
-  // @ts-ignore
-  .post(authenticateUser,upload.single('storeImage'), createStore);
+storeRouter.post(
+  '/create-store',
+  authenticateUser,
+  hasPermission('store:create'),
+  upload.single('storeImage'),
+  createStore
+);
 
-// @ts-ignore
-storeRouter.route('/get-store/:id').get(authenticateUser, getSingleStore);
-// @ts-ignore
-storeRouter.route('/store-update/:id').put(authenticateUser, updateStore);
-// @ts-ignore
-storeRouter.route('/get-all-store').get(authenticateUser, getAllStore);
-// @ts-ignore
-storeRouter.route('/store-delete/:id').delete(authenticateUser, deleteStore);
+storeRouter.get(
+  '/get-store/:id',
+  authenticateUser,
+  getSingleStore,
+  hasPermission('store:view')
+);
+storeRouter.put(
+  '/store-update/:id',
+  authenticateUser,
+  updateStore,
+  hasPermission('store:edit')
+);
+storeRouter.get(
+  '/get-all-store',
+  authenticateUser,
+  getAllStore,
+  hasPermission('store:view')
+);
+storeRouter.delete(
+  '/store-delete/:id',
+  authenticateUser,
+  deleteStore,
+  hasPermission('store:delete')
+);
 
 export default storeRouter;
