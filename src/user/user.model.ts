@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import mongoose, { Schema } from 'mongoose';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { IUser, IRole, IPermission } from '../types/role-permission';
 
 const SALT_WORK_FACTOR = 10;
@@ -104,7 +104,7 @@ userSchema.methods.assignRole = async function (
   this.roles = [
     ...new Set([
       ...this.roles.map((id) => id.toString()),
-      ...roles.map((r) => r._id.toString()),
+      ...roles.map((r) => r.id.toString()),
     ]),
   ].map((id) => new mongoose.Types.ObjectId(id));
 
@@ -119,7 +119,7 @@ userSchema.methods.removeRole = async function (
   const Role = mongoose.model<IRole>('Role');
   const roles = await Role.find({ name: { $in: roleNames } });
 
-  const roleIds = roles.map((r) => r._id.toString());
+  const roleIds = roles.map((r) => r.id.toString());
   this.roles = this.roles.filter((id) => !roleIds.includes(id.toString()));
 
   return this.save();

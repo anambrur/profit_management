@@ -5,15 +5,15 @@ import expressAsyncHandler from 'express-async-handler';
 import fs from 'fs';
 import createHttpError from 'http-errors';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import cloudinary from '../config/cloudinary';
 import envConfig from '../config/envConfig';
-import uploadLocalFileToCloudinary from '../service/fileUpload.service';
-import userModel from './user.model';
-import { IUser } from '../types/role-permission';
 import roleModel from '../role/role.model';
-import { StoreAccessRequest } from '../utils/store-access';
+import uploadLocalFileToCloudinary from '../service/fileUpload.service';
 import storeModel from '../store/store.model';
-import mongoose from 'mongoose';
+import { IUser } from '../types/role-permission';
+import { StoreAccessRequest } from '../utils/store-access';
+import userModel from './user.model';
 
 // Helper function for role/permission checks
 export const checkAdminOrSelf = async (
@@ -42,17 +42,9 @@ export const createUser = expressAsyncHandler(
       allowedStores,
     } = req.body;
 
-    if (
-      !name ||
-      !email ||
-      !username ||
-      !phone ||
-      !password ||
-      !allowedStores
-    ) {
+    if (!name || !email || !username || !phone || !password || !allowedStores) {
       return next(createHttpError(400, 'All fields are required'));
     }
-
 
     try {
       // Verify store IDs exist if provided
@@ -101,7 +93,6 @@ export const createUser = expressAsyncHandler(
         return next(createHttpError(404, 'Role not found'));
       }
 
-
       // Create user
       const newUser = await userModel.create({
         name,
@@ -119,6 +110,7 @@ export const createUser = expressAsyncHandler(
 
       // Omit sensitive data in response
       const userResponse = newUser.toObject();
+      // @ts-ignore
       delete userResponse.password;
       delete userResponse.profileImagePublicId;
 
@@ -151,7 +143,6 @@ export const loginUser = expressAsyncHandler(
       if (!user) {
         return next(createHttpError(401, 'User not found'));
       }
-
 
       if (user.status !== 'active') {
         return next(createHttpError(403, 'Account is not active'));
@@ -288,6 +279,7 @@ export const updateUser = expressAsyncHandler(
 
       const updatedUser = await user.save();
       const userResponse = updatedUser.toObject();
+      // @ts-ignore
       delete userResponse.password;
       delete userResponse.profileImagePublicId;
 
@@ -306,6 +298,7 @@ export const updateUser = expressAsyncHandler(
 export const deleteUser = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // @ts-ignore
       if (!req.user?.hasRole('admin')) {
         return next(createHttpError(403, 'Forbidden - Admin access required'));
       }
@@ -331,6 +324,7 @@ export const deleteUser = expressAsyncHandler(
 export const getAllUser = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // @ts-ignore
       if (!req.user?.hasRole('admin')) {
         return next(createHttpError(403, 'Forbidden - Admin access required'));
       }
