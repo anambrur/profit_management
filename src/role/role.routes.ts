@@ -16,45 +16,45 @@ const roleRouter = Router();
 
 roleRouter.post(
   '/create',
-  createRole,
   authenticateUser,
-  hasPermission('role:create')
+  hasPermission('role:create'),
+  createRole
 );
 roleRouter.get(
   '/all',
-  getAllRoles,
   authenticateUser,
-  hasPermission('role:view')
+  hasPermission('role:view'),
+  getAllRoles
 );
 roleRouter.get(
   '/:id',
-  getRoleById,
   authenticateUser,
-  hasPermission('role:view')
+  hasPermission('role:view'),
+  getRoleById
 );
 roleRouter.put(
   '/:id',
-  updateRole,
   authenticateUser,
-  hasPermission('role:edit')
+  hasPermission('role:edit'),
+  updateRole
 );
 roleRouter.delete(
   '/:id',
-  deleteRole,
   authenticateUser,
-  hasPermission('role:delete')
+  hasPermission('role:delete'),
+  deleteRole
 );
 roleRouter.post(
   '/:id/permissions/assign',
-  assignPermissionsToRole,
   authenticateUser,
-  hasPermission('role:edit')
+  hasPermission('role:edit'),
+  assignPermissionsToRole
 );
 roleRouter.post(
   '/:id/permissions/revoke',
-  revokePermissionsFromRole,
   authenticateUser,
-  hasPermission('role:edit')
+  hasPermission('role:edit'),
+  revokePermissionsFromRole
 );
 
 export default roleRouter;
