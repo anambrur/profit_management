@@ -13,8 +13,8 @@ export interface IRole extends Document {
   hasPermissionTo(permissionName: string): Promise<boolean>;
 }
 
+
 export interface IUser extends Document {
-  // ... other fields
   name: string;
   email: string;
   username?: string;
@@ -26,7 +26,7 @@ export interface IUser extends Document {
   profileImage?: string;
   profileImagePublicId?: string;
   lastLogin?: Date;
-  
+  allowedStores: Schema.Types.ObjectId[];
 
   // Methods
   comparePassword(candidatePassword: string): Promise<boolean>;

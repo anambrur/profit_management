@@ -11,6 +11,9 @@ import uploadLocalFileToCloudinary from '../service/fileUpload.service';
 import userModel from './user.model';
 import { IUser } from '../types/role-permission';
 import roleModel from '../role/role.model';
+import { StoreAccessRequest } from '../utils/store-access';
+import storeModel from '../store/store.model';
+import mongoose from 'mongoose';
 
 // Helper function for role/permission checks
 export const checkAdminOrSelf = async (
@@ -22,20 +25,47 @@ export const checkAdminOrSelf = async (
   const user = req.user as IUser;
 
   // Check if user is admin or the same user being modified
-  return user.hasRole('admin') || user._id.toString() === userId;
+  return user.hasRole('admin') || user.id.toString() === userId;
 };
 
 // ✅ Create User (Admin only)
 export const createUser = expressAsyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const { name, email, username, phone, address, password, status } =
-      req.body;
+  async (req: StoreAccessRequest | any, res: Response, next: NextFunction) => {
+    const {
+      name,
+      email,
+      username,
+      phone,
+      address,
+      password,
+      status,
+      allowedStores,
+    } = req.body;
 
-    if (!name || !email || !username || !phone || !password) {
+    if (
+      !name ||
+      !email ||
+      !username ||
+      !phone ||
+      !password ||
+      !allowedStores
+    ) {
       return next(createHttpError(400, 'All fields are required'));
     }
 
+
     try {
+      // Verify store IDs exist if provided
+      if (allowedStores && allowedStores.length > 0) {
+        const existingStores = await storeModel.countDocuments({
+          _id: { $in: allowedStores },
+        });
+        if (existingStores !== allowedStores.length) {
+          return next(
+            createHttpError(400, 'One or more store IDs are invalid')
+          );
+        }
+      }
       // Check permissions
       if (!(await checkAdminOrSelf(req, ''))) {
         return next(createHttpError(403, 'Forbidden - Admin access required'));
@@ -71,6 +101,7 @@ export const createUser = expressAsyncHandler(
         return next(createHttpError(404, 'Role not found'));
       }
 
+
       // Create user
       const newUser = await userModel.create({
         name,
@@ -83,6 +114,7 @@ export const createUser = expressAsyncHandler(
         profileImage: imageData.url,
         profileImagePublicId: imageData.publicId,
         roles: roleId._id,
+        allowedStores: allowedStores,
       });
 
       // Omit sensitive data in response
@@ -109,7 +141,6 @@ export const loginUser = expressAsyncHandler(
     if (!email || !password) {
       return next(createHttpError(400, 'Email and password are required'));
     }
-    console.log('body', password);
 
     try {
       const user = await userModel
@@ -121,7 +152,6 @@ export const loginUser = expressAsyncHandler(
         return next(createHttpError(401, 'User not found'));
       }
 
-      console.log('user', user);
 
       if (user.status !== 'active') {
         return next(createHttpError(403, 'Account is not active'));
@@ -190,15 +220,15 @@ export const logoutUser = expressAsyncHandler(
   }
 );
 
-// ✅ Update User
+// ✅ Update User (now with store management)
 export const updateUser = expressAsyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: StoreAccessRequest | any, res: Response, next: NextFunction) => {
     try {
       const user = await userModel.findById(req.params.id);
       if (!user) return next(createHttpError(404, 'User not found'));
 
       // Check permissions
-      const isAdminOrSelf = await checkAdminOrSelf(req, user._id.toString());
+      const isAdminOrSelf = await checkAdminOrSelf(req, user.id.toString());
       if (!isAdminOrSelf) {
         return next(createHttpError(403, 'Forbidden - Not authorized'));
       }
@@ -217,19 +247,42 @@ export const updateUser = expressAsyncHandler(
         user.profileImagePublicId = (result as { public_id: string }).public_id;
       }
 
-      // Update fields
-      const { name, email, username, phone, address, status } = req.body;
+      // Update basic fields
+      const { name, email, username, phone, address, status, allowedStores } =
+        req.body;
       user.name = name || user.name;
       user.email = email || user.email;
       user.username = username || user.username;
       user.phone = phone || user.phone;
       user.address = address || user.address;
 
-      // Only admin can update status and roles
+      // Only admin can update status, roles, and stores
       if (req.user?.hasRole('admin')) {
         user.status = status || user.status;
+
+        // Handle roles update
         if (req.body.roles) {
           await user.assignRole(req.body.roles);
+        }
+
+        // Handle store assignments if provided
+        if (allowedStores !== undefined) {
+          // Verify store IDs exist
+          if (allowedStores.length > 0) {
+            const existingStores = await storeModel.countDocuments({
+              _id: { $in: allowedStores },
+            });
+            if (existingStores !== allowedStores.length) {
+              return next(
+                createHttpError(400, 'One or more store IDs are invalid')
+              );
+            }
+          }
+
+          // Update allowed stores
+          user.allowedStores = allowedStores.map(
+            (id: string) => new mongoose.Types.ObjectId(id)
+          );
         }
       }
 
@@ -300,12 +353,13 @@ export const getUser = expressAsyncHandler(
       const user = await userModel
         .findById(req.params.id)
         .select('-password -profileImagePublicId')
-        .populate('roles');
+        .populate('roles')
+        .populate('allowedStores');
 
       if (!user) return next(createHttpError(404, 'User not found'));
 
       // Check if requester is admin or the user themselves
-      const isAdminOrSelf = await checkAdminOrSelf(req, user._id.toString());
+      const isAdminOrSelf = await checkAdminOrSelf(req, user.id.toString());
       if (!isAdminOrSelf) {
         return next(createHttpError(403, 'Forbidden - Not authorized'));
       }

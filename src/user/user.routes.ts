@@ -23,7 +23,6 @@ const userRouter = Router();
 userRouter.post(
   '/register',
   authenticateUser,
-  // @ts-ignore
   hasRole('admin'), // Only admin can register users
   upload.single('profileImage'),
   createUser
@@ -33,11 +32,7 @@ userRouter.post(
 userRouter.post('/login', loginUser);
 
 // ✅ Logout User (Authenticated users only)
-userRouter.post(
-  '/logout',
-  authenticateUser,
-  logoutUser
-);
+userRouter.post('/logout', authenticateUser, logoutUser);
 
 // ✅ Get All Users (Admin or users with view permission)
 userRouter.get(
@@ -62,7 +57,7 @@ userRouter.put(
   upload.single('profileImage'),
   async (req, res, next) => {
     // Allow if admin or updating own profile
-    if (req.user?.roles.includes('admin') || req.user?._id === req.params.id) {
+    if (req.user?.hasRole('admin') || req.user?._id === req.params.id) {
       return next();
     }
     return res.status(403).json({ message: 'Forbidden' });

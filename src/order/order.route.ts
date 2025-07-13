@@ -6,7 +6,7 @@ const orderRouter = Router();
 
 orderRouter.route('/get-all-orders').get(getAllOrders);
 
-//@ts-ignore
-orderRouter.route('/get-orders').get(getOrders);
+//forntend route
+orderRouter.get('/get-orders', authenticateUser, getOrders);
 
 export default orderRouter;
