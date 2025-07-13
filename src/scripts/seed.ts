@@ -1,6 +1,7 @@
 import connectDB from '../db/dbConnection';
 import permissionModel from '../permission/permission.model';
 import roleModel from '../role/role.model';
+import storeModel from '../store/store.model';
 import userModel from '../user/user.model';
 
 const seed = async () => {
@@ -47,12 +48,15 @@ const seed = async () => {
         { $set: { permissions } }
       );
     }
+    const stores = await storeModel.find();
+
 
     // Create admin user
     const admin = await userModel.create({
       name: 'Admin',
       email: 'admin@gmail.com',
-      password: '12345678', // Note: This should be hashed in your user model's pre-save hook
+      password: '12345678',
+      allowedStores: stores.map((store) => store._id), // Note: This should be hashed in your user model's pre-save hook
     });
 
     if (typeof admin.assignRole === 'function') {

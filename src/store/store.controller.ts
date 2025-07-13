@@ -5,6 +5,8 @@ import createHttpError from 'http-errors';
 import cloudinary from '../config/cloudinary.js';
 import uploadLocalFileToCloudinary from '../service/fileUpload.service.js';
 import storeModel from './store.model.js';
+import userModel from '../user/user.model.js';
+import { Types } from 'mongoose';
 
 export const createStore = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -40,6 +42,17 @@ export const createStore = expressAsyncHandler(
         storeClientSecret,
         storeImage: imageUrl,
         storeImagePublicId: profileImagePublicId,
+      });
+
+      // const adminUser = await userModel.findOne({ roles: 'admin' });
+
+      // if (adminUser) {
+      //   adminUser.allowedStores.push(new Types.ObjectId(newStore._id));
+      //   await adminUser.save();
+      // }
+
+      await userModel.findByIdAndUpdate(req.user?.id, {
+        $push: { allowedStores: newStore._id },
       });
 
       res.status(201).json({

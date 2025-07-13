@@ -57,11 +57,19 @@ const userSchema: Schema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    allowedStores: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'Store',
+        required: true,
+      },
+    ],
   },
   {
     timestamps: true,
   }
 );
+userSchema.index({ allowedStores: 1 });
 
 // Password hashing middleware
 userSchema.pre<IUser>('save', async function (next) {

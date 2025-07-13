@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // order.controller.ts
 import { NextFunction, Request, Response } from 'express';
 import expressAsyncHandler from 'express-async-handler';
@@ -5,6 +6,8 @@ import transformOrdersData from '../service/orderFormator.service.js';
 import syncOrdersFromAPI from '../service/syncOrderFromAPI.service.js';
 import storeModel from '../store/store.model.js';
 import orderModel from './order.model.js';
+import { checkStoreAccess, StoreAccessRequest } from '../utils/store-access.js';
+import createHttpError from 'http-errors';
 
 export const getAllOrders = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -81,8 +84,9 @@ export const getAllOrders = expressAsyncHandler(
 
 //  get all orders
 export const getOrders = expressAsyncHandler(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: StoreAccessRequest | any, res: Response, next: NextFunction) => {
     try {
+      const user = req.user!;
       const page = Math.max(Number(req.query.page) || 1, 1);
       const limit = Math.min(Number(req.query.limit) || 20, 100);
       const skip = (page - 1) * limit;
@@ -100,10 +104,28 @@ export const getOrders = expressAsyncHandler(
       // Build dynamic filter
       const filter: any = {};
 
+      // Apply store filtering based on user permissions
       if (storeId) {
+        // If specific store is requested, verify access
+        if (!checkStoreAccess(user, storeId)) {
+          return next(createHttpError(403, 'No access to this store'));
+        }
         filter.storeId = storeId;
+      } else {
+        // If no store specified, filter by user's allowed stores
+        // Unless user has permission to view all stores
+        const allowedStores = await storeModel
+          .find({
+            _id: { $in: user.allowedStores },
+          })
+          .select('storeId -_id');
+
+        filter.storeId = {
+          $in: allowedStores.map((store) => store.storeId),
+        };
       }
 
+      // Add status filter if provided
       if (status) {
         filter.status = status;
       }
@@ -117,13 +139,11 @@ export const getOrders = expressAsyncHandler(
         ];
       }
 
-      const total = await orderModel.countDocuments(filter);
 
-      const orders = await orderModel
-        .find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit);
+      const [total, orders] = await Promise.all([
+        orderModel.countDocuments(filter),
+        orderModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      ]);
 
       res.status(200).json({
         success: true,
