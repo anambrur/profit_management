@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import authenticateUser from '../middlewares/authenticateUser';
-import { upload } from '../middlewares/multer';
+import authenticateUser from '../middlewares/authenticateUser.js';
+import { hasAnyPermission, hasRole } from '../middlewares/checkPermission.js';
+import { upload } from '../middlewares/multer.js';
 import {
   createUser,
   deleteUser,
@@ -9,21 +10,18 @@ import {
   loginUser,
   logoutUser,
   updateUser,
-} from './user.controller';
-import {
-  hasPermission,
-  hasAnyPermission,
-  hasRole,
-  hasAnyRole,
-} from '../middlewares/checkPermission';
+} from './user.controller.js';
 
 const userRouter = Router();
+
+const asyncHandler = (fn: any) => (req: any, res: any, next: any) =>
+  fn(req, res, next).catch(next);
 
 // ✅ Create User (Admin only)
 userRouter.post(
   '/register',
   authenticateUser,
-  hasRole('admin'), // Only admin can register users
+  asyncHandler(hasRole('admin')),
   upload.single('profileImage'),
   createUser
 );
@@ -38,7 +36,7 @@ userRouter.post('/logout', authenticateUser, logoutUser);
 userRouter.get(
   '/all-user',
   authenticateUser,
-  hasAnyPermission(['user:view', 'user:admin']),
+  asyncHandler(hasAnyPermission(['user:view', 'user:admin'])),
   getAllUser
 );
 
@@ -46,7 +44,7 @@ userRouter.get(
 userRouter.delete(
   '/delete-user/:id',
   authenticateUser,
-  hasRole('admin'), // Only admin can delete users
+  asyncHandler(hasRole('admin')), // Only admin can delete users
   deleteUser
 );
 
@@ -55,13 +53,13 @@ userRouter.put(
   '/update-user/:id',
   authenticateUser,
   upload.single('profileImage'),
-  async (req, res, next) => {
+  asyncHandler(async (req: any, res: any, next: any) => {
     // Allow if admin or updating own profile
-    if (req.user?.hasRole('admin') || req.user?._id === req.params.id) {
+    if (req.user?.hasRole('admin') || req.user?.id === req.params.id) {
       return next();
     }
     return res.status(403).json({ message: 'Forbidden' });
-  },
+  }),
   updateUser
 );
 
@@ -69,13 +67,13 @@ userRouter.put(
 userRouter.get(
   '/get-user/:id',
   authenticateUser,
-  async (req, res, next) => {
+  asyncHandler(async (req: any, res: any, next: any) => {
     // Allow if admin or viewing own profile
     if (req.user?.roles.includes('admin') || req.user?._id === req.params.id) {
       return next();
     }
     return res.status(403).json({ message: 'Forbidden' });
-  },
+  }),
   getUser
 );
 

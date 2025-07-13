@@ -8,7 +8,10 @@ export type StoreAccessRequest = Request & {
 };
 
 // Check if user has access to a specific store
-export const checkStoreAccess = (user: IUser, storeId: string): boolean => {
+export const checkStoreAccess = (
+  user: IUser,
+  storeId: string
+): Promise<boolean> => {
   return (
     user.hasPermissionTo('store.view') ||
     user.allowedStores.some((id) => id.toString() === storeId)

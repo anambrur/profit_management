@@ -9,13 +9,13 @@ import morgan from 'morgan';
 import envConfig from './config/envConfig.js';
 import globalError from './middlewares/globalError.js';
 import orderRouter from './order/order.route.js';
+import permissionRouter from './permission/permission.routes.js';
 import productRouter from './product/product.routes.js';
 import productHistoryRouter from './productHistory/productHistory.route.js';
 import profitRouter from './profit_analyzer/profit.route.js';
+import roleRouter from './role/role.routes.js';
 import storeRouter from './store/store.route.js';
 import userRouter from './user/user.routes.js';
-import roleRouter from './role/role.routes.js';
-import permissionRouter from './permission/permission.routes.js';
 
 const app: Application = express();
 

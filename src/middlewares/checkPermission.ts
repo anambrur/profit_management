@@ -1,5 +1,5 @@
-import { Request, Response, NextFunction } from 'express';
-import { IUser } from '../types/role-permission';
+import { NextFunction, Request, Response } from 'express';
+import { IUser } from '../types/role-permission.js';
 
 type AsyncMiddleware = (
   req: Request,
@@ -13,26 +13,26 @@ export const hasPermission = (permission: string): AsyncMiddleware => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        message: 'Unauthorized'
+        message: 'Unauthorized',
       });
     }
 
     const user = req.user as IUser;
-    
+
     try {
       if (await user.hasPermissionTo(permission)) {
         return next();
       }
-      
+
       return res.status(403).json({
         success: false,
-        message: 'Forbidden - Insufficient permissions'
+        message: 'Forbidden - Insufficient permissions',
       });
     } catch (error) {
       console.error('Permission check error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Error checking permissions'
+        message: 'Error checking permissions',
       });
     }
   };
@@ -44,26 +44,26 @@ export const hasAnyPermission = (permissions: string[]): AsyncMiddleware => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        message: 'Unauthorized'
+        message: 'Unauthorized',
       });
     }
 
     const user = req.user as IUser;
-    
+
     try {
       if (await user.hasAnyPermission(permissions)) {
         return next();
       }
-      
+
       return res.status(403).json({
         success: false,
-        message: 'Forbidden - Insufficient permissions'
+        message: 'Forbidden - Insufficient permissions',
       });
     } catch (error) {
       console.error('Permission check error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Error checking permissions'
+        message: 'Error checking permissions',
       });
     }
   };
@@ -75,26 +75,26 @@ export const hasRole = (role: string): AsyncMiddleware => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        message: 'Unauthorized'
+        message: 'Unauthorized',
       });
     }
 
     const user = req.user as IUser;
-    
+
     try {
       if (await user.hasRole(role)) {
         return next();
       }
-      
+
       return res.status(403).json({
         success: false,
-        message: 'Forbidden - Insufficient role'
+        message: 'Forbidden - Insufficient role',
       });
     } catch (error) {
       console.error('Role check error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Error checking role'
+        message: 'Error checking role',
       });
     }
   };
@@ -106,27 +106,29 @@ export const hasAnyRole = (roles: string[]): AsyncMiddleware => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        message: 'Unauthorized'
+        message: 'Unauthorized',
       });
     }
 
     const user = req.user as IUser;
-    
+
     try {
-      const results = await Promise.all(roles.map(role => user.hasRole(role)));
-      if (results.some(hasRole => hasRole)) {
+      const results = await Promise.all(
+        roles.map((role) => user.hasRole(role))
+      );
+      if (results.some((hasRole) => hasRole)) {
         return next();
       }
-      
+
       return res.status(403).json({
         success: false,
-        message: 'Forbidden - Insufficient role'
+        message: 'Forbidden - Insufficient role',
       });
     } catch (error) {
       console.error('Role check error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Error checking roles'
+        message: 'Error checking roles',
       });
     }
   };

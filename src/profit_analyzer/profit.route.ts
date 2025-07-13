@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import authenticateUser from '../middlewares/authenticateUser.js';
-import protectAdmin from '../middlewares/protectAdmin.js';
 import { getProfit } from './profit.controller.js';
 
 const profitRouter = Router();
@@ -15,6 +14,6 @@ function asyncHandler(fn: any) {
 profitRouter
   .route('/get-all-profits')
   // @ts-ignore
-  .get(authenticateUser, protectAdmin, asyncHandler(getProfit));
+  .get(authenticateUser, asyncHandler(getProfit));
 
 export default profitRouter;
