@@ -47,6 +47,7 @@ const syncItemsFromAPI = async (
 
     const newProducts = filteredItems.map((apiItem: Product) => ({
       mart: apiItem.mart,
+      storeId: storeId,
       sku: apiItem.sku,
       condition: apiItem.condition,
       availability: apiItem.availability,
@@ -59,11 +60,9 @@ const syncItemsFromAPI = async (
       lifecycleStatus: apiItem.lifecycleStatus,
     }));
 
-    console.log(storeObjectId);
 
     // 5. Insert into productModel
     const insertedProducts = await productModel.insertMany(newProducts);
-    console.log(`✅ Inserted ${insertedProducts.length} new products`);
 
     // 6. Prepare product history records using inserted ObjectIds
     const purchaseHistoryItems = insertedProducts.map((product, index) => ({
@@ -89,13 +88,11 @@ const syncItemsFromAPI = async (
 
     // 7. Insert into productHistoryModel
     await productHistoryModel.insertMany(purchaseHistoryItems);
-    console.log(
-      `📦 Created ${purchaseHistoryItems.length} product history records`
-    );
+    
 
     return insertedProducts;
   } catch (err) {
-    console.error('❌ Sync Error:', err);
+    console.error('❌ Error in syncItemsFromAPI:');
     throw err;
   }
 };

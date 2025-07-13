@@ -9,38 +9,56 @@ import {
   getProductHistoryList,
   updateSingleField,
 } from './productHistory.controller.js';
+import { hasPermission } from '../middlewares/checkPermission';
 
 const productHistoryRouter = Router();
 
-productHistoryRouter
-  .route('/get-all-product-history')
-  .get(authenticateUser, getAllProductHistory);
+productHistoryRouter.get(
+  '/get-all-product-history',
+  authenticateUser,
+  hasPermission('product-history:view'),
+  getAllProductHistory
+);
 
-productHistoryRouter
-  .route('/:id/update')
-  .patch(authenticateUser, (req, res, next) => {
+productHistoryRouter.patch(
+  '/:id/update',
+  authenticateUser,
+  hasPermission('product-history:edit'),
+  (req, res, next) => {
     Promise.resolve(updateSingleField(req, res, next)).catch(next);
-  });
+  }
+);
 
-productHistoryRouter
-  .route('/create-product-history/:id')
-  .post(authenticateUser, (req, res, next) => {
+productHistoryRouter.post(
+  '/create-product-history/:id',
+  authenticateUser,
+  hasPermission('product-history:create'),
+  (req, res, next) => {
     Promise.resolve(createProductHistory(req, res, next)).catch(next);
-  });
+  }
+);
 
-productHistoryRouter
-  .route('/get-product-history-list/:id')
-  .get(authenticateUser, getProductHistoryList);
+productHistoryRouter.get(
+  '/get-product-history-list/:id',
+  authenticateUser,
+  hasPermission('product-history:view'),
+  getProductHistoryList
+);
 
-productHistoryRouter
-  .route('/delete-product-history/:id')
-  .delete(authenticateUser, (req, res, next) => {
+productHistoryRouter.delete(
+  '/delete-product-history/:id',
+  authenticateUser,
+  hasPermission('product-history:delete'),
+  (req, res, next) => {
     Promise.resolve(deleteProduct(req, res, next)).catch(next);
-  });
+  }
+);
 
 productHistoryRouter.post(
   '/upload-product-history',
   csvUpload.single('file'),
+  authenticateUser,
+  hasPermission('product-history:create'),
   (req, res, next) => {
     Promise.resolve(bulkUploadProductHistory(req, res, next)).catch(next);
   }

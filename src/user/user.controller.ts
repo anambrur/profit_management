@@ -219,9 +219,13 @@ export const updateUser = expressAsyncHandler(
       if (!user) return next(createHttpError(404, 'User not found'));
 
       // Check permissions
-      const isAdminOrSelf = await checkAdminOrSelf(req, user.id.toString());
-      if (!isAdminOrSelf) {
-        return next(createHttpError(403, 'Forbidden - Not authorized'));
+      const populatedUser = await userModel
+        .findById(req.user?._id)
+        .populate('roles');
+      const isAdmin = await populatedUser?.hasRole('admin');
+
+      if (!isAdmin) {
+        return next(createHttpError(403, 'Forbidden - Admin access required'));
       }
 
       // Handle file upload
@@ -352,10 +356,14 @@ export const getUser = expressAsyncHandler(
 
       if (!user) return next(createHttpError(404, 'User not found'));
 
-      // Check if requester is admin or the user themselves
-      const isAdminOrSelf = await checkAdminOrSelf(req, user.id.toString());
-      if (!isAdminOrSelf) {
-        return next(createHttpError(403, 'Forbidden - Not authorized'));
+      // Check permissions
+      const populatedUser = await userModel
+        .findById(req.user?.id)
+        .populate('roles');
+      const isAdmin = await populatedUser?.hasRole('admin');
+
+      if (!isAdmin) {
+        return next(createHttpError(403, 'Forbidden - Admin access required'));
       }
 
       res.status(200).json({ success: true, user });

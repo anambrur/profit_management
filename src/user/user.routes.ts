@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import authenticateUser from '../middlewares/authenticateUser.js';
-import { hasAnyPermission, hasRole } from '../middlewares/checkPermission.js';
-import { upload } from '../middlewares/multer.js';
+import authenticateUser from '../middlewares/authenticateUser';
+import { upload } from '../middlewares/multer';
 import {
   createUser,
   deleteUser,
@@ -10,18 +9,16 @@ import {
   loginUser,
   logoutUser,
   updateUser,
-} from './user.controller.js';
+} from './user.controller';
+import { hasAnyPermission, hasRole } from '../middlewares/checkPermission';
 
 const userRouter = Router();
-
-const asyncHandler = (fn: any) => (req: any, res: any, next: any) =>
-  fn(req, res, next).catch(next);
 
 // ✅ Create User (Admin only)
 userRouter.post(
   '/register',
   authenticateUser,
-  asyncHandler(hasRole('admin')),
+  hasRole('admin'), // Only admin can register users
   upload.single('profileImage'),
   createUser
 );
@@ -36,7 +33,7 @@ userRouter.post('/logout', authenticateUser, logoutUser);
 userRouter.get(
   '/all-user',
   authenticateUser,
-  asyncHandler(hasAnyPermission(['user:view', 'user:admin'])),
+  hasAnyPermission(['user:view', 'user:admin']),
   getAllUser
 );
 
@@ -44,7 +41,7 @@ userRouter.get(
 userRouter.delete(
   '/delete-user/:id',
   authenticateUser,
-  asyncHandler(hasRole('admin')), // Only admin can delete users
+  hasRole('admin'), // Only admin can delete users
   deleteUser
 );
 
@@ -53,28 +50,10 @@ userRouter.put(
   '/update-user/:id',
   authenticateUser,
   upload.single('profileImage'),
-  asyncHandler(async (req: any, res: any, next: any) => {
-    // Allow if admin or updating own profile
-    if (req.user?.hasRole('admin') || req.user?.id === req.params.id) {
-      return next();
-    }
-    return res.status(403).json({ message: 'Forbidden' });
-  }),
   updateUser
 );
 
 // ✅ Get user by ID (Admin or own profile)
-userRouter.get(
-  '/get-user/:id',
-  authenticateUser,
-  asyncHandler(async (req: any, res: any, next: any) => {
-    // Allow if admin or viewing own profile
-    if (req.user?.roles.includes('admin') || req.user?._id === req.params.id) {
-      return next();
-    }
-    return res.status(403).json({ message: 'Forbidden' });
-  }),
-  getUser
-);
+userRouter.get('/get-user/:id', authenticateUser, getUser);
 
 export default userRouter;

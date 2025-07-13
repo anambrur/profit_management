@@ -125,6 +125,8 @@ export const getOrders = expressAsyncHandler(
         };
       }
 
+      // console.log('filter', filter);
+
       // Add status filter if provided
       if (status) {
         filter.status = status;
@@ -138,6 +140,7 @@ export const getOrders = expressAsyncHandler(
           { 'products.productSKU': regex },
         ];
       }
+      
 
       const [total, orders] = await Promise.all([
         orderModel.countDocuments(filter),
