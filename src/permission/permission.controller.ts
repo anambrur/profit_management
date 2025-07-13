@@ -1,21 +1,20 @@
-import expressAsyncHandler from 'express-async-handler';
 import { Request, Response } from 'express';
-import permissionModel from './permission.model';
-import { IPermission } from '../types/role-permission';
+import expressAsyncHandler from 'express-async-handler';
+import permissionModel from './permission.model.js';
 
 // Create permission
 export const createPermission = expressAsyncHandler(
   async (req: Request, res: Response) => {
     const { name, description } = req.body;
-    
-    const permission = await permissionModel.create({ 
-      name, 
-      description: description || '' 
+
+    const permission = await permissionModel.create({
+      name,
+      description: description || '',
     });
-    
+
     res.status(201).json({
       success: true,
-      data: permission
+      data: permission,
     });
   }
 );
@@ -24,10 +23,10 @@ export const createPermission = expressAsyncHandler(
 export const getAllPermissions = expressAsyncHandler(
   async (req: Request, res: Response) => {
     const permissions = await permissionModel.find().sort({ name: 1 });
-    
+
     res.status(200).json({
       success: true,
-      data: permissions
+      data: permissions,
     });
   }
 );
@@ -36,18 +35,18 @@ export const getAllPermissions = expressAsyncHandler(
 export const getPermissionById = expressAsyncHandler(
   async (req: Request, res: Response) => {
     const permission = await permissionModel.findById(req.params.id);
-    
+
     if (!permission) {
       res.status(404).json({
         success: false,
-        message: 'Permission not found'
+        message: 'Permission not found',
       });
       return;
     }
-    
+
     res.status(200).json({
       success: true,
-      data: permission
+      data: permission,
     });
   }
 );
@@ -56,24 +55,24 @@ export const getPermissionById = expressAsyncHandler(
 export const updatePermission = expressAsyncHandler(
   async (req: Request, res: Response) => {
     const { name, description } = req.body;
-    
+
     const permission = await permissionModel.findByIdAndUpdate(
       req.params.id,
       { name, description },
       { new: true, runValidators: true }
     );
-    
+
     if (!permission) {
       res.status(404).json({
         success: false,
-        message: 'Permission not found'
+        message: 'Permission not found',
       });
       return;
     }
-    
+
     res.status(200).json({
       success: true,
-      data: permission
+      data: permission,
     });
   }
 );
@@ -82,18 +81,18 @@ export const updatePermission = expressAsyncHandler(
 export const deletePermission = expressAsyncHandler(
   async (req: Request, res: Response) => {
     const permission = await permissionModel.findByIdAndDelete(req.params.id);
-    
+
     if (!permission) {
       res.status(404).json({
         success: false,
-        message: 'Permission not found'
+        message: 'Permission not found',
       });
       return;
     }
-    
+
     res.status(200).json({
       success: true,
-      data: {}
+      data: {},
     });
   }
 );

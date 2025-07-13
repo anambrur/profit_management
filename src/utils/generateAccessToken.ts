@@ -20,11 +20,9 @@ const generateAccessToken = async (
     const uniqueId = uuid();
 
     // 2. Add decryption validation
-  
 
     const id = client_id;
     const secret = client_secret;
-    
 
     // try {
     //   id = decrypt(client_id);

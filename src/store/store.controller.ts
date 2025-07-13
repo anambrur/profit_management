@@ -6,7 +6,6 @@ import cloudinary from '../config/cloudinary.js';
 import uploadLocalFileToCloudinary from '../service/fileUpload.service.js';
 import storeModel from './store.model.js';
 import userModel from '../user/user.model.js';
-import { Types } from 'mongoose';
 
 export const createStore = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {

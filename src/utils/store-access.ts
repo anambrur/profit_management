@@ -9,13 +9,6 @@ export type StoreAccessRequest = Request & {
 };
 
 // Check if user has access to a specific store
-// export const checkStoreAccess = (user: IUser, storeId: string): boolean => {
-//   return (
-//     user.hasPermissionTo('store.view') ||
-//     user.allowedStores.some((id) => id.toString() === storeId)
-//   );
-// };
-
 export const checkStoreAccess = async (
   user: IUser,
   storeId: string
