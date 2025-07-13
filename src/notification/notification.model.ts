@@ -19,3 +19,5 @@ const notificationSchema = new mongoose.Schema({
     default: Date.now,
   },
 });
+
+export default mongoose.model('Notification', notificationSchema);

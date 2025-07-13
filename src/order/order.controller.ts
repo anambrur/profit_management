@@ -2,12 +2,12 @@
 // order.controller.ts
 import { NextFunction, Request, Response } from 'express';
 import expressAsyncHandler from 'express-async-handler';
+import createHttpError from 'http-errors';
 import transformOrdersData from '../service/orderFormator.service.js';
 import syncOrdersFromAPI from '../service/syncOrderFromAPI.service.js';
 import storeModel from '../store/store.model.js';
-import orderModel from './order.model.js';
 import { checkStoreAccess, StoreAccessRequest } from '../utils/store-access.js';
-import createHttpError from 'http-errors';
+import orderModel from './order.model.js';
 
 export const getAllOrders = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -138,7 +138,6 @@ export const getOrders = expressAsyncHandler(
           { 'products.productSKU': regex },
         ];
       }
-
 
       const [total, orders] = await Promise.all([
         orderModel.countDocuments(filter),

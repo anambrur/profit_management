@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import {
+  assignPermissionsToRole,
   createRole,
+  deleteRole,
   getAllRoles,
   getRoleById,
+  revokePermissionsFromRole,
   updateRole,
-  deleteRole,
-  assignPermissionsToRole,
-  revokePermissionsFromRole
-} from './role.controller';
+} from './role.controller.js';
 
 const roleRouter = Router();
 

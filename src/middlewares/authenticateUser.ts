@@ -1,10 +1,9 @@
 import { NextFunction, Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
-import envConfig from '../config/envConfig';
-import { IUser } from '../types/role-permission'; // Import your IUser interface
 import expressAsyncHandler from 'express-async-handler';
 import createHttpError from 'http-errors';
-import userModel from '../user/user.model';
+import jwt from 'jsonwebtoken';
+import { IUser } from '../types/role-permission.js'; // Import your IUser interface
+import userModel from '../user/user.model.js';
 
 declare global {
   namespace Express {
@@ -37,7 +36,6 @@ export const authenticateUser = expressAsyncHandler(
         process.env.JWT_SECRET as string
       ) as JwtPayload;
 
-
       const user = await userModel
         .findById(decoded.id)
         .select('-password -refreshToken');
@@ -49,7 +47,6 @@ export const authenticateUser = expressAsyncHandler(
       // Make sure to attach the full Mongoose model with methods
       req.user = user;
 
-      
       next();
     } catch (error) {
       next(createHttpError(401, 'Unauthorized - Invalid token'));

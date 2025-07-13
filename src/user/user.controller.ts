@@ -6,14 +6,14 @@ import fs from 'fs';
 import createHttpError from 'http-errors';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
-import cloudinary from '../config/cloudinary';
-import envConfig from '../config/envConfig';
-import roleModel from '../role/role.model';
-import uploadLocalFileToCloudinary from '../service/fileUpload.service';
-import storeModel from '../store/store.model';
-import { IUser } from '../types/role-permission';
-import { StoreAccessRequest } from '../utils/store-access';
-import userModel from './user.model';
+import cloudinary from '../config/cloudinary.js';
+import envConfig from '../config/envConfig.js';
+import roleModel from '../role/role.model.js';
+import uploadLocalFileToCloudinary from '../service/fileUpload.service.js';
+import storeModel from '../store/store.model.js';
+import { IUser } from '../types/role-permission.js';
+import { StoreAccessRequest } from '../utils/store-access.js';
+import userModel from './user.model.js';
 
 // Helper function for role/permission checks
 export const checkAdminOrSelf = async (

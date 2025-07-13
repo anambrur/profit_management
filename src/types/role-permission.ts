@@ -1,4 +1,4 @@
-import { Document, Types, Schema } from 'mongoose';
+import { Document, Schema, Types } from 'mongoose';
 
 export interface IPermission extends Document {
   name: string;
@@ -12,7 +12,6 @@ export interface IRole extends Document {
   revokePermissionTo(permissionNames: string[]): Promise<IRole>;
   hasPermissionTo(permissionName: string): Promise<boolean>;
 }
-
 
 export interface IUser extends Document {
   name: string;

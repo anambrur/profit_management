@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import mongoose, { Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
-import { IUser, IRole, IPermission } from '../types/role-permission';
+import mongoose, { Schema } from 'mongoose';
+import { IPermission, IRole, IUser } from '../types/role-permission.js';
 
 const SALT_WORK_FACTOR = 10;
 
@@ -101,6 +101,7 @@ userSchema.methods.assignRole = async function (
   const roles = await Role.find({ name: { $in: roleNames } });
 
   // Add new roles and remove duplicates
+  // @ts-ignore
   this.roles = [
     ...new Set([
       ...this.roles.map((id) => id.toString()),
@@ -120,6 +121,7 @@ userSchema.methods.removeRole = async function (
   const roles = await Role.find({ name: { $in: roleNames } });
 
   const roleIds = roles.map((r) => r.id.toString());
+  // @ts-ignore
   this.roles = this.roles.filter((id) => !roleIds.includes(id.toString()));
 
   return this.save();
@@ -131,6 +133,7 @@ userSchema.methods.hasRole = async function (
   roleName: string
 ): Promise<boolean> {
   await this.populate<{ roles: IRole[] }>('roles');
+  // @ts-ignore
   return this.roles.some((role) => role.name === roleName);
 };
 
@@ -149,6 +152,7 @@ userSchema.methods.hasPermissionTo = async function (
   });
 
   return this.roles.some((role) =>
+    // @ts-ignore
     role.permissions?.some(
       (permission: any) => permission.name === permissionName
     )
@@ -170,6 +174,7 @@ userSchema.methods.hasAnyPermission = async function (
   });
 
   return this.roles.some((role) =>
+    // @ts-ignore
     role.permissions?.some((permission: any) =>
       permissionNames.includes(permission.name)
     )
