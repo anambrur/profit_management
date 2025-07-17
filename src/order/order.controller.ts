@@ -52,7 +52,7 @@ export const getAllOrders = expressAsyncHandler(
       const response = {
         message: 'Order processing completed',
         success: true,
-        stats: {
+        status: {
           totalFetched: allStoreOrders.length,
           created: createdOrders.length,
           skipped: skippedOrders.length,

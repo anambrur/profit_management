@@ -3,81 +3,196 @@ import type { NextFunction, Request, Response } from 'express';
 import createHttpError from 'http-errors';
 import mongoose from 'mongoose';
 import xlsx from 'xlsx';
-import Product from '../product/product.model.js';
+import productModel from '../product/product.model.js';
 import { ProductHistoryRow } from '../types/types.js';
 import productHistoryModel from './productHistory.model.js';
 import { checkStoreAccess, StoreAccessRequest } from '../utils/store-access.js';
 import storeModel from '../store/store.model.js';
+
+// Create product history
+// export const createProductHistory = async (
+//   req: Request,
+//   res: Response,
+//   next: NextFunction
+// ) => {
+//   try {
+//     const { id } = req.params;
+//     const {
+//       storeID,
+//       purchase,
+//       received,
+//       lost,
+//       sentToWfs,
+//       costOfPrice,
+//       orderId,
+//       sellPrice,
+//       date,
+//       status,
+//       email,
+//       card,
+//       supplier,
+//     } = req.body;
+
+//     // Check if product exists
+//     const product = await productModel.findById(id);
+//     if (!product) {
+//       return next(createHttpError(404, 'Product not found'));
+//     }
+
+//     // Handle supplier (could be stringified JSON or object)
+//     let supplierObject: { name: string; link: string } | undefined;
+
+//     if (supplier) {
+//       if (typeof supplier === 'string') {
+//         try {
+//           supplierObject = JSON.parse(supplier);
+//         } catch {
+//           return res.status(400).json({ message: 'Invalid supplier format' });
+//         }
+//       } else if (typeof supplier === 'object') {
+//         supplierObject = supplier;
+//       }
+
+//       if (!supplierObject?.name || !supplierObject?.link) {
+//         return res
+//           .status(400)
+//           .json({ message: 'Supplier must have name and link' });
+//       }
+//     }
+
+//     const newProduct = await productHistoryModel.create({
+//       productId: product._id,
+//       storeID,
+//       purchaseQuantity: purchase || 0,
+//       receiveQuantity: received || 0,
+//       lostQuantity: lost || 0,
+//       sendToWFS: sentToWfs || 0,
+//       costOfPrice: costOfPrice || 0,
+//       status: status || '',
+//       orderId: orderId || '',
+//       sellPrice: sellPrice || 0,
+//       date: date || new Date(),
+//       email: email || '',
+//       card: card || '',
+//       supplier: supplierObject,
+//     });
+
+//     await productModel.updateOne(
+//       { _id: product._id },
+//       {
+//         $inc: {
+//           available: +purchase - lost,
+//         },
+//       }
+//     );
+
+//     res.status(201).json({
+//       newProduct,
+//       success: true,
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
 export const createProductHistory = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { id } = req.params;
     const {
       storeID,
-      purchase,
-      received,
-      lost,
-      sentToWfs,
-      costOfPrice,
-      orderId,
-      sellPrice,
-      date,
-      status,
-      email,
-      card,
+      purchase = 0,
+      received = 0,
+      lost = 0,
+      sentToWfs = 0,
+      costOfPrice = 0,
+      orderId = '',
+      sellPrice = 0,
+      date = new Date(),
+      status = '',
+      email = '',
+      card = '',
       supplier,
     } = req.body;
 
     // Check if product exists
-    const product = await Product.findById(id);
+    const product = await productModel.findById(id).session(session);
     if (!product) {
+      await session.abortTransaction();
       return next(createHttpError(404, 'Product not found'));
     }
 
-    // Handle supplier (could be stringified JSON or object)
-    let supplierObject: { name: string; link: string } | undefined;
-
+    // Handle supplier
+    let supplierObject;
     if (supplier) {
-      if (typeof supplier === 'string') {
-        try {
-          supplierObject = JSON.parse(supplier);
-        } catch {
-          return res.status(400).json({ message: 'Invalid supplier format' });
+      try {
+        supplierObject =
+          typeof supplier === 'string' ? JSON.parse(supplier) : supplier;
+        if (!supplierObject?.name || !supplierObject?.link) {
+          await session.abortTransaction();
+          return res
+            .status(400)
+            .json({ message: 'Supplier must have name and link' });
         }
-      } else if (typeof supplier === 'object') {
-        supplierObject = supplier;
-      }
-
-      if (!supplierObject?.name || !supplierObject?.link) {
-        return res
-          .status(400)
-          .json({ message: 'Supplier must have name and link' });
+      } catch {
+        await session.abortTransaction();
+        return res.status(400).json({ message: 'Invalid supplier format' });
       }
     }
 
-    const newProduct = await productHistoryModel.create({
-      productId: product._id,
-      storeID,
-      purchaseQuantity: purchase || 0,
-      receiveQuantity: received || 0,
-      lostQuantity: lost || 0,
-      sendToWFS: sentToWfs || 0,
-      costOfPrice: costOfPrice || 0,
-      status: status || '',
-      orderId: orderId || '',
-      sellPrice: sellPrice || 0,
-      date: date || new Date(),
-      email: email || '',
-      card: card || '',
-      supplier: supplierObject,
-    });
+    // Create history record
+    const newProduct = await productHistoryModel.create(
+      [
+        {
+          productId: product._id,
+          storeID,
+          purchaseQuantity: purchase,
+          receiveQuantity: received,
+          lostQuantity: lost,
+          sendToWFS: sentToWfs,
+          costOfPrice,
+          status,
+          orderId,
+          sellPrice,
+          date,
+          email,
+          card,
+          supplier: supplierObject,
+        },
+      ],
+      { session }
+    );
 
-    res.status(201).json({ newProduct, success: true });
+    // Update product inventory
+    await productModel.updateOne(
+      { _id: product._id },
+      {
+        $inc: {
+          available: received - lost,
+        },
+        $set: {
+          lastInventoryUpdate: new Date(),
+        },
+      },
+      { session }
+    );
+
+    await session.commitTransaction();
+    res.status(201).json({
+      newProduct: newProduct[0],
+      success: true,
+    });
   } catch (error) {
+    await session.abortTransaction();
     next(error);
+  } finally {
+    session.endSession();
   }
 };
 
@@ -137,132 +252,7 @@ export const deleteProduct = async (
   }
 };
 
-// export const getAllProductHistory = async (
-//   req: Request,
-//   res: Response,
-//   next: NextFunction
-// ) => {
-//   try {
-//     const search = String(
-//       req.query.sku || req.query.productName || req.query.search || ''
-//     ).trim();
-
-//     const storeID = req.query.storeID as string | undefined;
-
-//     const pipeline: any[] = [
-//       {
-//         $lookup: {
-//           from: 'products',
-//           localField: 'productId',
-//           foreignField: '_id',
-//           as: 'product',
-//         },
-//       },
-//       { $unwind: '$product' },
-//       {
-//         $lookup: {
-//           from: 'stores',
-//           localField: 'storeID',
-//           foreignField: '_id',
-//           as: 'store',
-//         },
-//       },
-//       { $unwind: { path: '$store', preserveNullAndEmptyArrays: true } },
-//     ];
-
-//     if (storeID && mongoose.Types.ObjectId.isValid(storeID)) {
-//       pipeline.push({
-//         $match: { storeID: new mongoose.Types.ObjectId(storeID) },
-//       });
-//     }
-
-//     if (search) {
-//       pipeline.push({
-//         $match: {
-//           $or: [
-//             { 'product.sku': { $regex: search, $options: 'i' } },
-//             { 'product.productName': { $regex: search, $options: 'i' } },
-//           ],
-//         },
-//       });
-//     }
-
-//     // ✅ Clone for count & aggregation
-//     const countPipeline = [...pipeline, { $count: 'total' }];
-//     const totalAggregationPipeline = [
-//       ...pipeline,
-//       {
-//         $group: {
-//           _id: null,
-//           totalPurchase: { $sum: '$purchaseQuantity' },
-//           totalReceive: { $sum: '$receiveQuantity' },
-//           totalLost: { $sum: '$lostQuantity' },
-//           totalSendToWFS: { $sum: '$sendToWFS' },
-//           totalCost: {
-//             $sum: { $multiply: ['$purchaseQuantity', '$costOfPrice'] },
-//           },
-//           totalWFSCost: { $sum: { $multiply: ['$sendToWFS', '$costOfPrice'] } },
-//         },
-//       },
-//       {
-//         $project: {
-//           _id: 0,
-//           totalPurchase: 1,
-//           totalReceive: 1,
-//           totalLost: 1,
-//           totalSendToWFS: 1,
-//           totalCost: 1,
-//           totalWFSCost: 1,
-//           remainingQuantity: {
-//             $subtract: ['$totalReceive', '$totalSendToWFS'],
-//           },
-//           remainingCost: { $subtract: ['$totalCost', '$totalWFSCost'] },
-//         },
-//       },
-//     ];
-
-//     const [countResult, summaryResult] = await Promise.all([
-//       productHistoryModel.aggregate(countPipeline),
-//       productHistoryModel.aggregate(totalAggregationPipeline),
-//     ]);
-
-//     const total = countResult[0]?.total || 0;
-//     const summary = summaryResult[0] || {
-//       totalPurchase: 0,
-//       totalReceive: 0,
-//       totalLost: 0,
-//       totalSendToWFS: 0,
-//       totalCost: 0,
-//       totalWFSCost: 0,
-//       remainingQuantity: 0,
-//       remainingCost: 0,
-//     };
-
-//     // ✅ Pagination
-//     const page = Math.max(Number(req.query.page) || 1, 1);
-//     const limit = Math.min(Number(req.query.limit) || 20, 100);
-//     const skip = (page - 1) * limit;
-
-//     pipeline.push({ $sort: { createdAt: -1 } });
-//     pipeline.push({ $skip: skip });
-//     pipeline.push({ $limit: limit });
-
-//     const products = await productHistoryModel.aggregate(pipeline);
-
-//     res.status(200).json({
-//       success: true,
-//       products,
-//       total,
-//       page,
-//       limit,
-//       totalPages: Math.ceil(total / limit),
-//       summary,
-//     });
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-
+// ✅ Get All Product History
 export const getAllProductHistory = async (
   req: StoreAccessRequest | any, // Changed to StoreAccessRequest
   res: Response,
@@ -322,7 +312,6 @@ export const getAllProductHistory = async (
         },
       });
     }
-
 
     if (search) {
       pipeline.push({
@@ -411,85 +400,234 @@ export const getAllProductHistory = async (
   }
 };
 
+// export const updateSingleField = async (
+//   req: Request,
+//   res: Response,
+//   next: NextFunction
+// ) => {
+//   const { id } = req.params;
+//   const { field, value } = req.body;
+
+//   try {
+//     const validFields = [
+//       'orderId',
+//       'purchaseQuantity',
+//       'receiveQuantity',
+//       'lostQuantity',
+//       'sendToWFS',
+//       'costOfPrice',
+//       'sellPrice',
+//       'date',
+//       'status',
+//       'card',
+//       'email',
+//       'status',
+//       'supplier',
+//       'upc',
+//     ];
+
+//     if (!validFields.includes(field)) {
+//       return res.status(400).json({ message: 'Invalid field name' });
+//     }
+
+//     let updateObj;
+//     if (field === 'supplier') {
+//       let supplierData;
+
+//       try {
+//         supplierData = JSON.parse(value);
+//       } catch {
+//         return res
+//           .status(400)
+//           .json({ message: 'Invalid JSON format for supplier' });
+//       }
+
+//       if (!supplierData.supplierName || !supplierData.supplierLink) {
+//         return res
+//           .status(400)
+//           .json({ message: 'Missing supplier name or link' });
+//       }
+
+//       updateObj = {
+//         supplier: {
+//           name: supplierData.supplierName,
+//           link: supplierData.supplierLink,
+//         },
+//         updatedAt: new Date(),
+//       };
+//     } else {
+//       // Default single field update
+//       updateObj = {
+//         [field]: value,
+//         updatedAt: new Date(),
+//       };
+//     }
+
+//     const updatedProduct = await productHistoryModel.findByIdAndUpdate(
+//       id,
+//       updateObj,
+//       { new: true }
+//     );
+
+//     if (!updatedProduct) {
+//       return res.status(404).json({ message: 'Product not found' });
+//     }
+
+//     res.status(200).json({
+//       message: `${field} updated successfully`,
+//       updatedProduct,
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
 export const updateSingleField = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const { id } = req.params;
-  const { field, value } = req.body;
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
   try {
-    const validFields = [
-      'orderId',
+    const { id } = req.params;
+    const { field, value } = req.body;
+
+    const inventoryFields = [
       'purchaseQuantity',
       'receiveQuantity',
       'lostQuantity',
       'sendToWFS',
+    ];
+    const validFields = [
+      'orderId',
+      ...inventoryFields,
       'costOfPrice',
       'sellPrice',
       'date',
       'status',
       'card',
       'email',
-      'status',
       'supplier',
       'upc',
     ];
 
     if (!validFields.includes(field)) {
+      await session.abortTransaction();
       return res.status(400).json({ message: 'Invalid field name' });
     }
 
-    let updateObj;
+    // First get the current history record
+    const currentHistory = await productHistoryModel
+      .findById(id)
+      .session(session);
+    if (!currentHistory) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: 'Product history not found' });
+    }
+
+    // Prepare update object
+    const updateObj: any = { updatedAt: new Date() };
+
     if (field === 'supplier') {
       let supplierData;
-
       try {
-        supplierData = JSON.parse(value);
+        supplierData = typeof value === 'string' ? JSON.parse(value) : value;
       } catch {
-        return res
-          .status(400)
-          .json({ message: 'Invalid JSON format for supplier' });
+        await session.abortTransaction();
+        return res.status(400).json({ message: 'Invalid supplier format' });
       }
 
-      if (!supplierData.supplierName || !supplierData.supplierLink) {
+      if (!supplierData.name || !supplierData.link) {
+        await session.abortTransaction();
         return res
           .status(400)
           .json({ message: 'Missing supplier name or link' });
       }
 
-      updateObj = {
-        supplier: {
-          name: supplierData.supplierName,
-          link: supplierData.supplierLink,
-        },
-        updatedAt: new Date(),
+      updateObj.supplier = {
+        name: supplierData.name,
+        link: supplierData.link,
       };
     } else {
-      // Default single field update
-      updateObj = {
-        [field]: value,
-        updatedAt: new Date(),
-      };
+      updateObj[field] = value;
     }
 
-    const updatedProduct = await productHistoryModel.findByIdAndUpdate(
+    // Update the history record
+    const updatedHistory = await productHistoryModel.findByIdAndUpdate(
       id,
       updateObj,
-      { new: true }
+      { new: true, session }
     );
 
-    if (!updatedProduct) {
-      return res.status(404).json({ message: 'Product not found' });
+    if (!updatedHistory) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: 'Product history not found' });
     }
 
+    // If this is an inventory-related field, update the product
+    if (inventoryFields.includes(field)) {
+      // Get the previous and new values
+      const oldValue = (currentHistory as any)[field] || 0;
+      const newValue = (updatedHistory as any)[field] || 0;
+      const difference = newValue - oldValue;
+
+      // Calculate how this affects inventory
+      let updateProduct = {};
+      switch (field) {
+        case 'receiveQuantity':
+          updateProduct = {
+            $inc: {
+              available: difference,
+            },
+          };
+          break;
+        case 'lostQuantity':
+          updateProduct = {
+            $inc: {
+              available: -difference,
+            },
+          };
+          break;
+        case 'sendToWFS':
+          updateProduct = {
+            $inc: {
+              available: -difference,
+            },
+          };
+          break;
+        case 'purchaseQuantity':
+          updateProduct = {
+            $inc: {
+              available: difference,
+            },
+          };
+          break;
+      }
+
+      if (Object.keys(updateProduct).length > 0) {
+        await productModel.findByIdAndUpdate(
+          currentHistory.productId,
+          {
+            ...updateProduct,
+            $set: { lastInventoryUpdate: new Date() },
+          },
+          { session }
+        );
+      }
+    }
+
+    await session.commitTransaction();
     res.status(200).json({
       message: `${field} updated successfully`,
-      updatedProduct,
+      updatedHistory,
     });
   } catch (error) {
+    await session.abortTransaction();
     next(error);
+  } finally {
+    session.endSession();
   }
 };
 
@@ -500,7 +638,7 @@ export const getProductHistoryList = async (
 ) => {
   const id = req.params.id;
   try {
-    const product = await Product.findById(id);
+    const product = await productModel.findById(id);
     if (!product) {
       return next(createHttpError(404, 'Product not found'));
     }
@@ -518,163 +656,7 @@ export const getProductHistoryList = async (
   }
 };
 
-// controllers/productHistoryController.ts
-// export const bulkUploadProductHistory = async (
-//   req: Request,
-//   res: Response,
-//   next: NextFunction
-// ) => {
-//   try {
-//     if (!req.file) {
-//       return res.status(400).json({ message: 'No file uploaded' });
-//     }
-
-//     // Read the file with proper options
-//     const workbook = xlsx.read(req.file.buffer, {
-//       type: 'buffer',
-//       cellDates: true,
-//       sheetStubs: true,
-//     });
-
-//     // Get the first sheet
-//     const sheetName = workbook.SheetNames[0];
-//     const worksheet = workbook.Sheets[sheetName];
-
-//     // Convert to JSON with explicit header row handling
-//     const data = xlsx.utils.sheet_to_json(worksheet, {
-//       header: [
-//         'date',
-//         'picture',
-//         'orderId',
-//         'link',
-//         'purchase',
-//         'received',
-//         'lostDamaged',
-//         'sentToWfs',
-//         'remaining',
-//         'costPerItem',
-//         'totalCost',
-//         'sentToWfsCost',
-//         'remainingCost',
-//         'status',
-//         'upc',
-//         'wfsStatus',
-//       ],
-//       range: 2, // Skip the first two rows (formulas and headers)
-//       defval: null,
-//       raw: false, // Get formatted strings
-//     });
-
-//     console.log('First few rows of parsed data:', data.slice(0, 5));
-
-//     const bulkData = [];
-//     const skippedProducts = [];
-//     const errors = [];
-//     const existingItems = [];
-
-//     for (const [index, row] of data.entries()) {
-//       try {
-//         // Skip empty rows or rows without essential data
-//         if (!row.upc && !row.orderId) continue;
-
-//         const upc = String(row.upc || '').trim();
-//         if (!upc || upc === 'UPC') continue; // Skip header row if it slipped through
-
-//         // const product = await Product.findOne({ sku: upc });
-//         const product = await Product.findOne({
-//           $or: [{ sku: upc }, { upc: upc }],
-//         });
-
-//         if (!product) {
-//           skippedProducts.push({ upc, row });
-//           continue;
-//         }
-
-//         // Check if the item already exists
-//         const existingItem = await productHistoryModel.findOne({
-//           productId: product._id,
-//           storeID: req.body.storeID,
-//           orderId: String(row.orderId || '').trim(),
-//         });
-//         if (existingItem) {
-//           existingItems.push({ upc, row });
-//           continue;
-//         }
-
-//         // Helper function to safely parse numbers
-//         const parseNumber = (value: any) => {
-//           if (value === null || value === undefined || value === '') return 0;
-//           if (typeof value === 'string' && value.startsWith('=')) return 0;
-//           const num = Number(value);
-//           return isNaN(num) ? 0 : num;
-//         };
-
-//         const history = {
-//           productId: product._id,
-//           storeID: req.body.storeID,
-//           orderId: String(row.orderId || '').trim(),
-//           purchaseQuantity: parseNumber(row.purchase),
-//           receiveQuantity: parseNumber(row.received),
-//           lostQuantity: parseNumber(row.lostDamaged),
-//           sendToWFS: parseNumber(row.sentToWfs),
-//           costOfPrice: parseNumber(row.costPerItem),
-//           totalPrice: String(row.totalCost || '0'),
-//           date: row.date ? new Date(row.date) : new Date(),
-//           status: String(row.status || ''),
-//           upc: upc,
-//           supplier: {
-//             name: '', // You can add supplier name if available
-//             link: String(row.link || ''),
-//           },
-//           email: '',
-//           card: '',
-//           sellPrice: 0,
-//         };
-
-//         bulkData.push(history);
-//       } catch (error) {
-//         errors.push({
-//           rowIndex: index,
-//           row,
-//           error: error.message,
-//         });
-//       }
-//     }
-
-//     console.log(`Processing results:
-//       - Valid records: ${bulkData.length}
-//       - Skipped products: ${skippedProducts.length}
-//       - Existing items: ${existingItems.length}
-//       - Errors: ${errors.length}`);
-
-//     if (bulkData.length > 0) {
-//       await productHistoryModel
-//         .insertMany(bulkData, { ordered: false })
-//         .catch((err) => {
-//           console.error('Bulk insert error:', err);
-//           errors.push({ error: 'Bulk insert failed', details: err.message });
-//         });
-//     }
-
-//     res.status(200).json({
-//       success: true,
-//       message: `${bulkData.length} records processed`,
-//       details: {
-//         inserted: bulkData.length,
-//         skippedProducts: skippedProducts.length,
-//         existingItems: existingItems.length,
-//         errors: errors.length,
-//       },
-//       skippedProducts: skippedProducts.slice(0, 10), // Only return first 10 for response
-//       existingItems: existingItems.slice(0, 10),
-//       sampleErrors: errors.slice(0, 5),
-//     });
-//   } catch (err) {
-//     console.error('Processing failed:', err);
-//     next(err);
-//   }
-// };
-
+// Bulk upload
 export const bulkUploadProductHistory = async (
   req: Request,
   res: Response,
@@ -737,7 +719,7 @@ export const bulkUploadProductHistory = async (
         if (!upc || upc === 'UPC') continue;
 
         // Find product by SKU or UPC
-        const product = await Product.findOne({
+        const product = await productModel.findOne({
           $or: [{ sku: upc }, { upc: upc }],
         });
 
