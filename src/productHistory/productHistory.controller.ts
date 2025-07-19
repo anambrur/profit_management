@@ -924,10 +924,7 @@ export const bulkUploadProductHistory = async (
 
     const bulkUpdates = [];
     const bulkInserts = [];
-    const productUpdates = new Map<
-      string,
-      { available: number }
-    >();
+    const availableUpdates = new Map<string, number>(); // Tracks changes to available quantity
     const skippedProducts = [];
     const errors = [];
 
@@ -956,32 +953,22 @@ export const bulkUploadProductHistory = async (
           return isNaN(num) ? 0 : num;
         };
 
-        const parseNumber2 = (value: any) => {
-          if (value === null || value === undefined || value === '') return 0;
-          if (typeof value === 'string') {
-            value = value.replace(/[$,]/g, '').trim();
-          }
-          const num = Number(value);
-          return isNaN(num) ? 0 : num;
-        };
-
         const orderId = String(row.orderId || '').trim();
-        const purchaseQuantity = parseNumber(row.purchase);
         const receiveQuantity = parseNumber(row.received);
         const lostQuantity = parseNumber(row.lostDamaged);
         const sendToWFS = parseNumber(row.sentToWfs);
-        const costOfPrice = parseNumber2(row.costPerItem);
 
-        // Track inventory changes
+        // Calculate net change to available quantity
+        const netAvailableChange = receiveQuantity - lostQuantity;
+
+        // Accumulate changes by product
         const productId = product._id.toString();
-        const currentUpdate = productUpdates.get(productId) || {
-          available: 0,
-        };
+        availableUpdates.set(
+          productId,
+          (availableUpdates.get(productId) || 0) + netAvailableChange
+        );
 
-        // currentUpdate.onHand += receiveQuantity - lostQuantity;
-        currentUpdate.available += receiveQuantity - sendToWFS - lostQuantity;
-        productUpdates.set(productId, currentUpdate);
-
+        // Rest of your existing logic for history updates...
         const zeroQuantityItem = await productHistoryModel
           .findOne({
             productId: product._id,
@@ -1000,19 +987,16 @@ export const bulkUploadProductHistory = async (
               update: {
                 $set: {
                   orderId,
-                  purchaseQuantity,
+                  purchaseQuantity: parseNumber(row.purchase),
                   receiveQuantity,
                   lostQuantity,
                   sendToWFS,
-                  costOfPrice,
+                  costOfPrice: parseNumber(row.costPerItem),
                   totalPrice: String(row.totalCost || '0'),
                   date: row.date ? new Date(row.date) : new Date(),
                   status: String(row.status || ''),
-                  upc: upc,
-                  supplier: {
-                    name: '',
-                    link: String(row.link || ''),
-                  },
+                  upc,
+                  supplier: { name: '', link: String(row.link || '') },
                   email: '',
                   card: '',
                   sellPrice: 0,
@@ -1034,19 +1018,16 @@ export const bulkUploadProductHistory = async (
               productId: product._id,
               storeID: req.body.storeID,
               orderId,
-              purchaseQuantity,
+              purchaseQuantity: parseNumber(row.purchase),
               receiveQuantity,
               lostQuantity,
               sendToWFS,
-              costOfPrice,
+              costOfPrice: parseNumber(row.costPerItem),
               totalPrice: String(row.totalCost || '0'),
               date: row.date ? new Date(row.date) : new Date(),
               status: String(row.status || ''),
-              upc: upc,
-              supplier: {
-                name: '',
-                link: String(row.link || ''),
-              },
+              upc,
+              supplier: { name: '', link: String(row.link || '') },
               email: '',
               card: '',
               sellPrice: 0,
@@ -1063,38 +1044,32 @@ export const bulkUploadProductHistory = async (
     }
 
     // Execute all operations in transaction
-    const updateResults =
+    const [updateResults, insertResults] = await Promise.all([
       bulkUpdates.length > 0
-        ? await productHistoryModel.bulkWrite(bulkUpdates, { session })
-        : null;
-
-    const insertResults =
+        ? productHistoryModel.bulkWrite(bulkUpdates, { session })
+        : null,
       bulkInserts.length > 0
-        ? await productHistoryModel.insertMany(bulkInserts, {
+        ? productHistoryModel.insertMany(bulkInserts, {
             session,
             ordered: false,
           })
-        : null;
+        : null,
+    ]);
 
-    // Update product inventories
-    if (productUpdates.size > 0) {
-      const bulkProductOps = Array.from(productUpdates.entries()).map(
-        ([productId, updates]) => ({
+    // Update available quantities in single bulk operation
+    if (availableUpdates.size > 0) {
+      await productModel.bulkWrite(
+        Array.from(availableUpdates.entries()).map(([productId, change]) => ({
           updateOne: {
             filter: { _id: new mongoose.Types.ObjectId(productId) },
             update: {
-              $inc: {
-                available: updates.available,
-              },
-              $set: {
-                lastInventoryUpdate: new Date(),
-              },
+              $inc: { available: change },
+              $set: { lastInventoryUpdate: new Date() },
             },
           },
-        })
+        })),
+        { session }
       );
-
-      await productModel.bulkWrite(bulkProductOps, { session });
     }
 
     await session.commitTransaction();
@@ -1107,7 +1082,7 @@ export const bulkUploadProductHistory = async (
         inserted: bulkInserts.length,
         skippedProducts: skippedProducts.length,
         errors: errors.length,
-        productsUpdated: productUpdates.size,
+        productsUpdated: availableUpdates.size,
       },
       updateResults: updateResults
         ? {
@@ -1115,7 +1090,7 @@ export const bulkUploadProductHistory = async (
             modifiedCount: updateResults.modifiedCount,
           }
         : null,
-      insertResults: insertResults ? { count: bulkInserts.length } : null,
+      insertResults: insertResults ? { count: insertResults.length } : null,
       sampleErrors: errors.slice(0, 5),
     });
   } catch (err) {
