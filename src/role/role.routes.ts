@@ -1,16 +1,16 @@
 import { Router } from 'express';
 import {
+  assignPermissionsToRole,
   createRole,
+  deleteRole,
   getAllRoles,
   getRoleById,
-  updateRole,
-  deleteRole,
-  assignPermissionsToRole,
   revokePermissionsFromRole,
+  updateRole,
 } from './role.controller';
 
 import authenticateUser from '../middlewares/authenticateUser.js';
-import { hasPermission } from '../middlewares/checkPermission';
+import { hasPermission } from '../middlewares/checkPermission.js';
 
 const roleRouter = Router();
 

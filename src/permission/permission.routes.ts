@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import {
   createPermission,
+  deletePermission,
   getAllPermissions,
   getPermissionById,
   updatePermission,
-  deletePermission,
-} from './permission.controller';
+} from './permission.controller.js';
 
-import { hasPermission } from '../middlewares/checkPermission';
+import { hasPermission } from '../middlewares/checkPermission.js';
 
 const permissionRouter = Router();
 

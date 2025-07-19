@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import authenticateUser from '../middlewares/authenticateUser.js';
+import { hasPermission } from '../middlewares/checkPermission.js';
 import { csvUpload } from '../middlewares/multer.js';
 import {
   bulkUploadProductHistory,
@@ -9,7 +10,6 @@ import {
   getProductHistoryList,
   updateSingleField,
 } from './productHistory.controller.js';
-import { hasPermission } from '../middlewares/checkPermission';
 
 const productHistoryRouter = Router();
 
