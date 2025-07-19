@@ -657,28 +657,247 @@ export const getProductHistoryList = async (
 };
 
 // Bulk upload
+// export const bulkUploadProductHistory = async (
+//   req: Request,
+//   res: Response,
+//   next: NextFunction
+// ) => {
+//   try {
+//     if (!req.file) {
+//       return res.status(400).json({ message: 'No file uploaded' });
+//     }
+
+//     // Read the file with proper options
+//     const workbook = xlsx.read(req.file.buffer, {
+//       type: 'buffer',
+//       cellDates: true,
+//       sheetStubs: true,
+//     });
+
+//     // Get the first sheet
+//     const sheetName = workbook.SheetNames[0];
+//     const worksheet = workbook.Sheets[sheetName];
+
+//     // Convert to JSON with explicit header row handling
+//     const data = xlsx.utils.sheet_to_json<ProductHistoryRow>(worksheet, {
+//       header: [
+//         'date',
+//         'picture',
+//         'orderId',
+//         'link',
+//         'purchase',
+//         'received',
+//         'lostDamaged',
+//         'sentToWfs',
+//         'remaining',
+//         'costPerItem',
+//         'totalCost',
+//         'sentToWfsCost',
+//         'remainingCost',
+//         'status',
+//         'upc',
+//         'wfsStatus',
+//       ],
+//       range: 2, // Skip the first two rows (formulas and headers)
+//       defval: null,
+//       raw: false, // Get formatted strings
+//     });
+
+//     // console.log('First few rows of parsed data:', data.slice(0, 5));
+
+//     const bulkUpdates = [];
+//     const bulkInserts = [];
+//     const skippedProducts = [];
+//     const errors = [];
+
+//     for (const [index, row] of data.entries()) {
+//       try {
+//         // Skip empty rows or rows without essential data
+//         if (!row.upc && !row.orderId) continue;
+
+//         const upc = String(row.upc || '').trim();
+//         if (!upc || upc === 'UPC') continue;
+
+//         // Find product by SKU or UPC
+//         const product = await productModel.findOne({
+//           $or: [{ sku: upc }, { upc: upc }],
+//         });
+
+//         if (!product) {
+//           skippedProducts.push({ upc, row });
+//           continue;
+//         }
+
+//         // Helper function to safely parse numbers
+//         const parseNumber = (value: any) => {
+//           if (value === null || value === undefined || value === '') return 0;
+//           if (typeof value === 'string' && value.startsWith('=')) return 0;
+//           const num = Number(value);
+//           return isNaN(num) ? 0 : num;
+//         };
+//         const parseNumber2 = (value: any) => {
+//           if (value === null || value === undefined || value === '') return 0;
+//           if (typeof value === 'string') {
+//             value = value.replace(/[$,]/g, '').trim();
+//           }
+//           const num = Number(value);
+//           return isNaN(num) ? 0 : num;
+//         };
+
+//         const orderId = String(row.orderId || '').trim();
+//         const purchaseQuantity = parseNumber(row.purchase);
+//         const receiveQuantity = parseNumber(row.received);
+//         const lostQuantity = parseNumber(row.lostDamaged);
+//         const sendToWFS = parseNumber(row.sentToWfs);
+//         const costOfPrice = parseNumber2(row.costPerItem);
+
+//         // First try to find existing records with zero quantities
+//         const zeroQuantityItem = await productHistoryModel.findOne({
+//           productId: product._id,
+//           storeID: req.body.storeID,
+//           purchaseQuantity: 0,
+//           receiveQuantity: 0,
+//           lostQuantity: 0,
+//           sendToWFS: 0,
+//         });
+
+//         if (zeroQuantityItem) {
+//           // Update the existing zero-quantity record
+//           bulkUpdates.push({
+//             updateOne: {
+//               filter: { _id: zeroQuantityItem._id },
+//               update: {
+//                 $set: {
+//                   orderId,
+//                   purchaseQuantity,
+//                   receiveQuantity,
+//                   lostQuantity,
+//                   sendToWFS,
+//                   costOfPrice,
+//                   totalPrice: String(row.totalCost || '0'),
+//                   date: row.date ? new Date(row.date) : new Date(),
+//                   status: String(row.status || ''),
+//                   upc: upc,
+//                   supplier: {
+//                     name: '',
+//                     link: String(row.link || ''),
+//                   },
+//                   email: '',
+//                   card: '',
+//                   sellPrice: 0,
+//                 },
+//               },
+//             },
+//           });
+//         } else {
+//           // Check if exact record already exists (non-zero quantities)
+//           const existingItem = await productHistoryModel.findOne({
+//             productId: product._id,
+//             storeID: req.body.storeID,
+//             orderId,
+//           });
+
+//           if (!existingItem) {
+//             // Insert new record
+//             bulkInserts.push({
+//               productId: product._id,
+//               storeID: req.body.storeID,
+//               orderId,
+//               purchaseQuantity,
+//               receiveQuantity,
+//               lostQuantity,
+//               sendToWFS,
+//               costOfPrice,
+//               totalPrice: String(row.totalCost || '0'),
+//               date: row.date ? new Date(row.date) : new Date(),
+//               status: String(row.status || ''),
+//               upc: upc,
+//               supplier: {
+//                 name: '',
+//                 link: String(row.link || ''),
+//               },
+//               email: '',
+//               card: '',
+//               sellPrice: 0,
+//             });
+//           }
+//           // Else: exact record exists, skip it
+//         }
+//       } catch (error: any) {
+//         errors.push({
+//           rowIndex: index,
+//           row,
+//           error: error.message,
+//         });
+//       }
+//     }
+
+//     console.log(`Processing results:
+//       - Updates: ${bulkUpdates.length}
+//       - Inserts: ${bulkInserts.length}
+//       - Skipped products: ${skippedProducts.length}
+//       - Errors: ${errors.length}`);
+
+//     // Execute bulk operations
+//     const updateResults =
+//       bulkUpdates.length > 0
+//         ? await productHistoryModel.bulkWrite(bulkUpdates)
+//         : null;
+
+//     const insertResults =
+//       bulkInserts.length > 0
+//         ? await productHistoryModel.insertMany(bulkInserts, { ordered: false })
+//         : null;
+
+//     res.status(200).json({
+//       success: true,
+//       message: `Processed ${bulkUpdates.length + bulkInserts.length} records`,
+//       details: {
+//         updated: bulkUpdates.length,
+//         inserted: bulkInserts.length,
+//         skippedProducts: skippedProducts.length,
+//         errors: errors.length,
+//       },
+//       updateResults: updateResults
+//         ? {
+//             matchedCount: updateResults.matchedCount,
+//             modifiedCount: updateResults.modifiedCount,
+//           }
+//         : null,
+//       insertResults: insertResults ? { count: bulkInserts.length } : null,
+//       skippedProducts: skippedProducts.slice(0, 10),
+//       updateProduct: bulkUpdates,
+//       sampleErrors: errors.slice(0, 5),
+//     });
+//   } catch (err) {
+//     console.error('Processing failed:', err);
+//     next(err);
+//   }
+// };
+
 export const bulkUploadProductHistory = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     if (!req.file) {
+      await session.abortTransaction();
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    // Read the file with proper options
     const workbook = xlsx.read(req.file.buffer, {
       type: 'buffer',
       cellDates: true,
       sheetStubs: true,
     });
 
-    // Get the first sheet
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
 
-    // Convert to JSON with explicit header row handling
     const data = xlsx.utils.sheet_to_json<ProductHistoryRow>(worksheet, {
       header: [
         'date',
@@ -698,43 +917,45 @@ export const bulkUploadProductHistory = async (
         'upc',
         'wfsStatus',
       ],
-      range: 2, // Skip the first two rows (formulas and headers)
+      range: 2,
       defval: null,
-      raw: false, // Get formatted strings
+      raw: false,
     });
-
-    // console.log('First few rows of parsed data:', data.slice(0, 5));
 
     const bulkUpdates = [];
     const bulkInserts = [];
+    const productUpdates = new Map<
+      string,
+      { available: number }
+    >();
     const skippedProducts = [];
     const errors = [];
 
     for (const [index, row] of data.entries()) {
       try {
-        // Skip empty rows or rows without essential data
         if (!row.upc && !row.orderId) continue;
 
         const upc = String(row.upc || '').trim();
         if (!upc || upc === 'UPC') continue;
 
-        // Find product by SKU or UPC
-        const product = await productModel.findOne({
-          $or: [{ sku: upc }, { upc: upc }],
-        });
+        const product = await productModel
+          .findOne({
+            $or: [{ sku: upc }, { upc: upc }],
+          })
+          .session(session);
 
         if (!product) {
           skippedProducts.push({ upc, row });
           continue;
         }
 
-        // Helper function to safely parse numbers
         const parseNumber = (value: any) => {
           if (value === null || value === undefined || value === '') return 0;
           if (typeof value === 'string' && value.startsWith('=')) return 0;
           const num = Number(value);
           return isNaN(num) ? 0 : num;
         };
+
         const parseNumber2 = (value: any) => {
           if (value === null || value === undefined || value === '') return 0;
           if (typeof value === 'string') {
@@ -751,18 +972,28 @@ export const bulkUploadProductHistory = async (
         const sendToWFS = parseNumber(row.sentToWfs);
         const costOfPrice = parseNumber2(row.costPerItem);
 
-        // First try to find existing records with zero quantities
-        const zeroQuantityItem = await productHistoryModel.findOne({
-          productId: product._id,
-          storeID: req.body.storeID,
-          purchaseQuantity: 0,
-          receiveQuantity: 0,
-          lostQuantity: 0,
-          sendToWFS: 0,
-        });
+        // Track inventory changes
+        const productId = product._id.toString();
+        const currentUpdate = productUpdates.get(productId) || {
+          available: 0,
+        };
+
+        // currentUpdate.onHand += receiveQuantity - lostQuantity;
+        currentUpdate.available += receiveQuantity - sendToWFS - lostQuantity;
+        productUpdates.set(productId, currentUpdate);
+
+        const zeroQuantityItem = await productHistoryModel
+          .findOne({
+            productId: product._id,
+            storeID: req.body.storeID,
+            purchaseQuantity: 0,
+            receiveQuantity: 0,
+            lostQuantity: 0,
+            sendToWFS: 0,
+          })
+          .session(session);
 
         if (zeroQuantityItem) {
-          // Update the existing zero-quantity record
           bulkUpdates.push({
             updateOne: {
               filter: { _id: zeroQuantityItem._id },
@@ -790,15 +1021,15 @@ export const bulkUploadProductHistory = async (
             },
           });
         } else {
-          // Check if exact record already exists (non-zero quantities)
-          const existingItem = await productHistoryModel.findOne({
-            productId: product._id,
-            storeID: req.body.storeID,
-            orderId,
-          });
+          const existingItem = await productHistoryModel
+            .findOne({
+              productId: product._id,
+              storeID: req.body.storeID,
+              orderId,
+            })
+            .session(session);
 
           if (!existingItem) {
-            // Insert new record
             bulkInserts.push({
               productId: product._id,
               storeID: req.body.storeID,
@@ -821,7 +1052,6 @@ export const bulkUploadProductHistory = async (
               sellPrice: 0,
             });
           }
-          // Else: exact record exists, skip it
         }
       } catch (error: any) {
         errors.push({
@@ -832,22 +1062,42 @@ export const bulkUploadProductHistory = async (
       }
     }
 
-    console.log(`Processing results:
-      - Updates: ${bulkUpdates.length}
-      - Inserts: ${bulkInserts.length}
-      - Skipped products: ${skippedProducts.length}
-      - Errors: ${errors.length}`);
-
-    // Execute bulk operations
+    // Execute all operations in transaction
     const updateResults =
       bulkUpdates.length > 0
-        ? await productHistoryModel.bulkWrite(bulkUpdates)
+        ? await productHistoryModel.bulkWrite(bulkUpdates, { session })
         : null;
 
     const insertResults =
       bulkInserts.length > 0
-        ? await productHistoryModel.insertMany(bulkInserts, { ordered: false })
+        ? await productHistoryModel.insertMany(bulkInserts, {
+            session,
+            ordered: false,
+          })
         : null;
+
+    // Update product inventories
+    if (productUpdates.size > 0) {
+      const bulkProductOps = Array.from(productUpdates.entries()).map(
+        ([productId, updates]) => ({
+          updateOne: {
+            filter: { _id: new mongoose.Types.ObjectId(productId) },
+            update: {
+              $inc: {
+                available: updates.available,
+              },
+              $set: {
+                lastInventoryUpdate: new Date(),
+              },
+            },
+          },
+        })
+      );
+
+      await productModel.bulkWrite(bulkProductOps, { session });
+    }
+
+    await session.commitTransaction();
 
     res.status(200).json({
       success: true,
@@ -857,6 +1107,7 @@ export const bulkUploadProductHistory = async (
         inserted: bulkInserts.length,
         skippedProducts: skippedProducts.length,
         errors: errors.length,
+        productsUpdated: productUpdates.size,
       },
       updateResults: updateResults
         ? {
@@ -865,12 +1116,13 @@ export const bulkUploadProductHistory = async (
           }
         : null,
       insertResults: insertResults ? { count: bulkInserts.length } : null,
-      skippedProducts: skippedProducts.slice(0, 10),
-      updateProduct: bulkUpdates,
       sampleErrors: errors.slice(0, 5),
     });
   } catch (err) {
-    console.error('Processing failed:', err);
+    await session.abortTransaction();
+    console.error('Bulk upload failed:', err);
     next(err);
+  } finally {
+    session.endSession();
   }
 };
