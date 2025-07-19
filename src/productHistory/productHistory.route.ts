@@ -20,15 +20,6 @@ productHistoryRouter.get(
   getAllProductHistory
 );
 
-productHistoryRouter.patch(
-  '/:id/update',
-  authenticateUser,
-  hasPermission('product-history:edit'),
-  (req, res, next) => {
-    Promise.resolve(updateSingleField(req, res, next)).catch(next);
-  }
-);
-
 productHistoryRouter.post(
   '/create-product-history/:id',
   authenticateUser,
@@ -43,6 +34,15 @@ productHistoryRouter.get(
   authenticateUser,
   hasPermission('product-history:view'),
   getProductHistoryList
+);
+
+productHistoryRouter.patch(
+  '/:id/update',
+  authenticateUser,
+  hasPermission('product-history:edit'),
+  (req, res, next) => {
+    Promise.resolve(updateSingleField(req, res, next)).catch(next);
+  }
 );
 
 productHistoryRouter.delete(

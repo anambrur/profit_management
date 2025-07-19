@@ -100,7 +100,6 @@ export const getMyDbAllProduct = expressAsyncHandler(
       const limit = Math.min(Number(req.query.limit) || 50, 100);
       const skip = (page - 1) * limit;
 
-      console.log(query);
 
       const [products, total] = await Promise.all([
         productModel
@@ -110,6 +109,15 @@ export const getMyDbAllProduct = expressAsyncHandler(
           .limit(limit),
         productModel.countDocuments(query),
       ]);
+
+      if (products.length === 0) {
+        return next(createHttpError(404, 'No products found'));
+      }
+
+      console.log('Fetched products:', products);
+      console.log('Total number of products:', total);
+
+
 
       res.status(200).json({
         success: true,
