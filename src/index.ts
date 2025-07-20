@@ -4,6 +4,7 @@ import envConfig from './config/envConfig.js';
 import connectDB from './db/dbConnection.js';
 import { OrderCornJob, ProductCornJob } from './service/cornJob.service.js';
 import { initNotificationService } from './service/notification.service.js';
+import queuseOrdersCornJob from './order/order.queue.js';
 
 const server = http.createServer(app);
 
@@ -16,6 +17,7 @@ const startServer = async () => {
   initNotificationService(server);
   ProductCornJob();
   OrderCornJob();
+  // queuseOrdersCornJob();
 };
 
 startServer();

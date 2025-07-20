@@ -11,7 +11,6 @@ const syncOrdersFromAPI = async (
 ) => {
   try {
     const correlationId = uuid();
-    // console.log(`Starting sync for store ${storeId}`);
 
     // 1. Generate Access Token
     const accessToken = await generateAccessToken(
@@ -27,14 +26,12 @@ const syncOrdersFromAPI = async (
 
     for (const shipNodeType of shipNodeTypes) {
       try {
-        // console.log(`Fetching ${shipNodeType} orders for store ${storeId}`);
-
         const response = await axios.get(
           'https://marketplace.walmartapis.com/v3/orders',
           {
             params: {
               createdStartDate: '2023-01-01',
-              limit: 100,
+              limit: 200,
               shipNodeType: shipNodeType,
               replacementInfo: false,
               productInfo: true,
@@ -46,11 +43,13 @@ const syncOrdersFromAPI = async (
               Accept: 'application/json',
               'Content-Type': 'application/json',
             },
-            timeout: 10000, // 10 second timeout
+            timeout: 120000, // 2 minute timeout
           }
         );
 
-        console.log(`API Response Status: ${response.status}`);
+        console.log(
+          `API Response Status: ${response.status} - ${shipNodeType} orders for store ${storeId}`
+        );
 
         if (response.data?.list?.elements?.order) {
           response.data.list.elements.order.forEach((order: any) => {
