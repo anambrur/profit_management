@@ -1,6 +1,5 @@
 // src/utils/store-access.ts
-import { StoreAccessRequest } from '../types/store-access';
-import storeModel from '../store/store.model';
+import storeModel from '../store/store.model.js';
 import { IUser } from '../types/role-permission';
 
 export const checkStoreAccess = async (
