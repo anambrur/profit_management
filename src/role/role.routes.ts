@@ -7,7 +7,7 @@ import {
   getRoleById,
   revokePermissionsFromRole,
   updateRole,
-} from './role.controller';
+} from './role.controller.js';
 
 import authenticateUser from '../middlewares/authenticateUser.js';
 import { hasPermission } from '../middlewares/checkPermission.js';
