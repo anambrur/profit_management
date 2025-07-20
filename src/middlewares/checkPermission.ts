@@ -1,6 +1,6 @@
-import { Request, Response, NextFunction } from 'express';
-import { IUser } from '../types/role-permission';
+import { NextFunction, Request, Response } from 'express';
 import createHttpError from 'http-errors';
+import { IUser } from '../types/role-permission.js';
 
 type AsyncMiddleware = (
   req: Request,
@@ -126,7 +126,7 @@ export const checkAdminOrSelf = (
     const user = req.user as IUser;
     const targetUserId = userIdPath
       .split('.')
-      .reduce((obj, key) => obj?.[key], req);
+      .reduce((obj: any, key: string) => obj?.[key], req);
 
     try {
       if (

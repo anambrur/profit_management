@@ -3,7 +3,7 @@ import { Router } from 'express';
 import authenticateUser from '../middlewares/authenticateUser.js';
 import { getProfit } from './profit.controller.js';
 
-import { hasPermission } from '../middlewares/checkPermission';
+import { hasPermission } from '../middlewares/checkPermission.js';
 
 const profitRouter = Router();
 

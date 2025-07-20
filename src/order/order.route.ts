@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import authenticateUser from '../middlewares/authenticateUser.js';
+import { hasPermission } from '../middlewares/checkPermission.js';
 import { getAllOrders, getOrders } from './order.controller.js';
-import { hasPermission } from '../middlewares/checkPermission';
 
 const orderRouter = Router();
 

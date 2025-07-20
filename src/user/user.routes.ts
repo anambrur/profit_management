@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import authenticateUser from '../middlewares/authenticateUser';
-import { upload } from '../middlewares/multer';
+import authenticateUser from '../middlewares/authenticateUser.js';
+import { hasAnyPermission, hasRole } from '../middlewares/checkPermission.js';
+import { upload } from '../middlewares/multer.js';
 import {
   createUser,
   deleteUser,
@@ -9,8 +10,7 @@ import {
   loginUser,
   logoutUser,
   updateUser,
-} from './user.controller';
-import { hasAnyPermission, hasRole } from '../middlewares/checkPermission';
+} from './user.controller.js';
 
 const userRouter = Router();
 
