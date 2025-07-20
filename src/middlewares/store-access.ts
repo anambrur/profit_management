@@ -1,31 +1,39 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// middleware/store-access.middleware.ts
+// src/middleware/store-access.middleware.ts
 import { NextFunction, Response } from 'express';
 import expressAsyncHandler from 'express-async-handler';
 import createHttpError from 'http-errors';
-import { checkStoreAccess, StoreAccessRequest } from '../utils/store-access.js';
+import { checkStoreAccess } from '../utils/store-access';
+import { StoreAccessRequest } from '../types/store-access';
 
 export const requireStoreAccess = expressAsyncHandler(
-  async (req: StoreAccessRequest | any, res: Response, next: NextFunction) => {
-    const storeId = req.params.storeId || req.query.storeId;
+  async (req: StoreAccessRequest, res: Response, next: NextFunction) => {
+    try {
+      const storeId = getStoreIdFromRequest(req);
 
-    if (!storeId) {
-      return next(createHttpError(400, 'Store ID is required'));
+      if (!storeId) {
+        throw createHttpError.BadRequest('Store ID is required');
+      }
+
+      if (!req.user) {
+        throw createHttpError.Unauthorized('Authentication required');
+      }
+
+      const hasAccess = await checkStoreAccess(req.user, storeId);
+      if (!hasAccess) {
+        throw createHttpError.Forbidden('No permission to access this store');
+      }
+
+      // Attach store ID to request for downstream use
+      req.storeId = storeId;
+      next();
+    } catch (error) {
+      next(error);
     }
-
-    if (!req.user) {
-      return next(createHttpError(401, 'Authentication required'));
-    }
-
-    if (!checkStoreAccess(req.user, storeId.toString())) {
-      return next(
-        createHttpError(403, 'You do not have permission to access this store')
-      );
-    }
-
-    // Attach store ID to request for downstream use if needed
-    req.storeId = storeId.toString();
-
-    next();
   }
 );
+
+// Helper function to extract store ID from request
+function getStoreIdFromRequest(req: StoreAccessRequest): string | null {
+  const storeId = req.params.storeId || req.query.storeId;
+  return storeId?.toString().trim() || null;
+}

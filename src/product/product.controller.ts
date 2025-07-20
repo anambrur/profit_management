@@ -5,7 +5,8 @@ import createHttpError from 'http-errors';
 import syncItemsFromAPI from '../service/syncItemsFromAPI.service.js';
 import storeModel from '../store/store.model.js';
 import productModel from './product.model.js';
-import { checkStoreAccess, StoreAccessRequest } from '../utils/store-access.js';
+import { checkStoreAccess } from '../utils/store-access.js';
+import { StoreAccessRequest } from '../types/store-access';
 
 export const getAllProducts = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -51,7 +52,7 @@ export const getAllProducts = expressAsyncHandler(
 
 
 export const getMyDbAllProduct = expressAsyncHandler(
-  async (req: StoreAccessRequest | any, res: Response, next: NextFunction) => {
+  async (req: StoreAccessRequest, res: Response, next: NextFunction) => {
     try {
       const user = req.user!;
       const query: any = {};
