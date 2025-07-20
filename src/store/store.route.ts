@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import authenticateUser from '../middlewares/authenticateUser.js';
+import { hasPermission } from '../middlewares/checkPermission.js';
 import { upload } from '../middlewares/multer.js';
 import {
   createStore,
@@ -8,7 +9,6 @@ import {
   getSingleStore,
   updateStore,
 } from './store.controller.js';
-import { hasPermission } from '../middlewares/checkPermission';
 
 const storeRouter = Router();
 
