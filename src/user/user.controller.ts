@@ -12,7 +12,7 @@ import roleModel from '../role/role.model.js';
 import uploadLocalFileToCloudinary from '../service/fileUpload.service.js';
 import storeModel from '../store/store.model.js';
 import { IUser } from '../types/role-permission.js';
-import { StoreAccessRequest } from '../utils/store-access.js';
+import { StoreAccessRequest } from '../types/store-access.js';
 import userModel from './user.model.js';
 
 // Helper function for role/permission checks
