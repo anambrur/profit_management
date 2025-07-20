@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from 'axios';
 import { v4 as uuid } from 'uuid';
-import { Order } from '../types/types.js';
 import generateAccessToken from '../utils/generateAccessToken.js';
+
+
 
 const syncOrdersFromAPI = async (
   storeId?: string,
@@ -11,20 +12,16 @@ const syncOrdersFromAPI = async (
 ) => {
   try {
     const correlationId = uuid();
-
-    // 1. Generate Access Token
     const accessToken = await generateAccessToken(
       storeClientId as string,
       storeClientSecret as string
     );
-    if (!accessToken) {
-      throw new Error('Failed to generate access token');
-    }
+    if (!accessToken) throw new Error('Failed to generate access token');
 
-    const allOrders: Order[] = [];
     const shipNodeTypes = ['SellerFulfilled', 'WFSFulfilled', '3PLFulfilled'];
 
-    for (const shipNodeType of shipNodeTypes) {
+    // Process all shipNodeTypes in parallel
+    const orderPromises = shipNodeTypes.map(async (shipNodeType) => {
       try {
         const response = await axios.get(
           'https://marketplace.walmartapis.com/v3/orders',
@@ -32,7 +29,7 @@ const syncOrdersFromAPI = async (
             params: {
               createdStartDate: '2023-01-01',
               limit: 200,
-              shipNodeType: shipNodeType,
+              shipNodeType,
               replacementInfo: false,
               productInfo: true,
             },
@@ -43,7 +40,7 @@ const syncOrdersFromAPI = async (
               Accept: 'application/json',
               'Content-Type': 'application/json',
             },
-            timeout: 120000, // 2 minute timeout
+            timeout: 120000,
           }
         );
 
@@ -51,25 +48,24 @@ const syncOrdersFromAPI = async (
           `API Response Status: ${response.status} - ${shipNodeType} orders for store ${storeId}`
         );
 
-        if (response.data?.list?.elements?.order) {
-          response.data.list.elements.order.forEach((order: any) => {
-            allOrders.push({
-              ...order,
-              storeId: storeId,
-              shipNodeType: shipNodeType,
-            });
-          });
-        }
+        return (
+          response.data?.list?.elements?.order?.map((order: any) => ({
+            ...order,
+            storeId,
+            shipNodeType,
+          })) || []
+        );
       } catch (error: any) {
         console.error(
           `Failed to fetch ${shipNodeType} orders for store ${storeId}:`,
           error.response?.data || error.message
         );
-        continue;
+        return [];
       }
-    }
+    });
 
-    return allOrders;
+    const results = await Promise.all(orderPromises);
+    return results.flat();
   } catch (err: any) {
     console.error(
       `Error processing store ${storeId}:`,
