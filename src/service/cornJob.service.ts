@@ -5,25 +5,9 @@ import storeModel from '../store/store.model.js';
 
 const apiUrl = process.env.API_BASE_URL;
 
-// const OrderCornJob = () => {
-//   corn.schedule('*/47 * * * *', async () => {
-//     try {
-//       sendNotification('info', 'Order cron job started');
-//       const response = await axios.get(`${apiUrl}/api/orders/get-all-orders`);
-//       sendNotification(
-//         'success',
-//         `Order cron job completed: ${response.data.message}`
-//       );
-//     } catch (error) {
-//       const errorMessage =
-//         error instanceof Error ? error.message : 'Unknown error';
-//       sendNotification('error', `Order cron job failed: ${errorMessage}`);
-//     }
-//   });
-// };
-
+// Revised cron job to process all stores
 const OrderCornJob = () => {
-  cron.schedule('*/5 * * * *', async () => {
+  cron.schedule('*/23 * * * *', async () => {
     try {
       sendNotification(
         'info',
