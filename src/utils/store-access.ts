@@ -1,7 +1,7 @@
 // src/utils/store-access.ts
 import { Request } from 'express';
-import { IUser } from '../types/role-permission';
-import storeModel from '../store/store.model';
+import storeModel from '../store/store.model.js';
+import { IUser } from '../types/role-permission.js';
 
 export type StoreAccessRequest = Request & {
   user?: IUser;

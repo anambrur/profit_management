@@ -2,7 +2,7 @@ import { Router } from 'express';
 import authenticateUser from '../middlewares/authenticateUser.js';
 import { getAllProducts, getMyDbAllProduct } from './product.controller.js';
 
-import { hasPermission } from '../middlewares/checkPermission';
+import { hasPermission } from '../middlewares/checkPermission.js';
 
 const productRouter = Router();
 

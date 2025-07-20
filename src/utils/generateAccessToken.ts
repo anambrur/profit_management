@@ -1,7 +1,6 @@
 import axios from 'axios';
 import qs from 'qs';
 import { v4 as uuid } from 'uuid';
-// import { decrypt } from '../service/encryptionAndDecryption.service';
 
 const generateAccessToken = async (
   client_id: string,

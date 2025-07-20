@@ -138,7 +138,15 @@ export const loginUser = expressAsyncHandler(
       const user = await userModel
         .findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } })
         .select('+password +status +roles')
-        .populate('roles');
+        .populate({
+          path: 'roles',
+          populate: {
+            path: 'permissions',
+            model: 'Permission',
+            select: '_id name',
+          },
+        })
+        .populate('allowedStores', '_id storeId storeName storeEmail');
 
       if (!user) {
         return next(createHttpError(401, 'User not found'));
@@ -184,6 +192,7 @@ export const loginUser = expressAsyncHandler(
         roles: user.roles,
         profileImage: user.profileImage,
         lastLogin: user.lastLogin,
+        allowedStores: user.allowedStores,
       };
 
       res.status(200).json({
