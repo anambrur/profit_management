@@ -177,8 +177,8 @@ export const loginUser = expressAsyncHandler(
       // Secure cookie settings
       res.cookie('token', token, {
         httpOnly: true,
-        secure: envConfig.nodeEnv === 'production',
-        sameSite: 'strict',
+        secure: true,
+        sameSite: 'none',
         maxAge: 24 * 60 * 60 * 1000,
         // domain: envConfig.cookieDomain,
         path: '/',
