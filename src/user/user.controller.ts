@@ -199,7 +199,7 @@ export const loginUser = expressAsyncHandler(
         success: true,
         message: 'Login successful',
         user: userData,
-        token: envConfig.nodeEnv === 'development' ? token : undefined,
+        token: token,
       });
     } catch (error) {
       next(createHttpError(500, 'Login failed. Please try again later'));
