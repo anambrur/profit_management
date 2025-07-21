@@ -126,6 +126,35 @@ export const assignPermissionsToRole = expressAsyncHandler(
   }
 );
 
+// Update all permissions for a role (replace existing permissions)
+export const updatePermissionsToRole = expressAsyncHandler(
+  async (req: Request, res: Response) => {
+    const { permissionNames }: { permissionNames: string[] } = req.body;
+
+    // Find the role
+    const role = await roleModel.findById(req.params.id);
+    if (!role) {
+      res.status(404).json({
+        success: false,
+        message: 'Role not found',
+      });
+      return;
+    }
+
+    role.permissions = [];
+    await role.save();
+
+    // Now assign the new permissions using your schema method
+    const updatedRole = await role.givePermissionTo(permissionNames);
+    await updatedRole.populate('permissions');
+
+    res.status(200).json({
+      success: true,
+      data: updatedRole,
+    });
+  }
+);
+
 // Revoke permissions from role
 export const revokePermissionsFromRole = expressAsyncHandler(
   async (req: Request, res: Response) => {
