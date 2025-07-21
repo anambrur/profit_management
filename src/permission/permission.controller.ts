@@ -54,11 +54,11 @@ export const getPermissionById = expressAsyncHandler(
 // Update permission
 export const updatePermission = expressAsyncHandler(
   async (req: Request, res: Response) => {
-    const { name, description } = req.body;
+    const { name } = req.body;
 
     const permission = await permissionModel.findByIdAndUpdate(
       req.params.id,
-      { name, description },
+      { name },
       { new: true, runValidators: true }
     );
 
