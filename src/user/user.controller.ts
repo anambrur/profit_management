@@ -385,24 +385,23 @@ export const getUser = expressAsyncHandler(
 // ✅ Change Password
 export const changePassword = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
+    const { newPassword } = req.body;
+    if (!newPassword) {
       return next(
         createHttpError(400, 'Both current and new password are required')
       );
     }
 
     try {
-      const user = await userModel.findById(req.user?.id).select('+password');
-      if (!user) return next(createHttpError(404, 'User not found'));
+      if (req.params.id) {
+        const user = await userModel
+          .findById(req.params.id)
+          .select('+password');
+        if (!user) return next(createHttpError(404, 'User not found'));
 
-      if (!(await bcrypt.compare(currentPassword, user.password))) {
-        return next(createHttpError(401, 'Current password is incorrect'));
+        user.password = await bcrypt.hash(newPassword, 12);
+        await user.save();
       }
-
-      user.password = await bcrypt.hash(newPassword, 12);
-      await user.save();
 
       res
         .status(200)

@@ -6,11 +6,9 @@ import createHttpError from 'http-errors';
 import transformOrdersData from '../service/orderFormator.service.js';
 import syncOrdersFromAPI from '../service/syncOrderFromAPI.service.js';
 import storeModel from '../store/store.model.js';
+import { StoreAccessRequest } from '../types/store-access';
 import { checkStoreAccess } from '../utils/store-access.js';
 import orderModel from './order.model.js';
-import { StoreAccessRequest } from '../types/store-access';
-
-
 
 export const processStoreOrders = expressAsyncHandler(
   async (req: Request, res: Response): Promise<void> => {
@@ -108,6 +106,10 @@ export const getOrders = expressAsyncHandler(
         storeId?: string;
         status?: string;
       };
+
+      console.log('search', search);
+      console.log('storeId', storeId);
+      console.log('status', status);
 
       // Build dynamic filter
       const filter: any = {};
