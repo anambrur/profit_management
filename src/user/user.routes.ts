@@ -3,6 +3,7 @@ import authenticateUser from '../middlewares/authenticateUser.js';
 import { hasAnyPermission, hasRole } from '../middlewares/checkPermission.js';
 import { upload } from '../middlewares/multer.js';
 import {
+  changePassword,
   createUser,
   deleteUser,
   getAllUser,
@@ -55,5 +56,6 @@ userRouter.put(
 
 // ✅ Get user by ID (Admin or own profile)
 userRouter.get('/get-user/:id', authenticateUser, getUser);
+userRouter.patch('/update-password/:id', authenticateUser, changePassword);
 
 export default userRouter;

@@ -10,7 +10,7 @@ const OrderSchema = new mongoose.Schema(
     shipNodeType: {
       type: String,
       index: true,
-    }, 
+    },
     customerOrderId: {
       type: String,
       required: true,
