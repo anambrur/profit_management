@@ -571,8 +571,6 @@ export const bulkUploadProductHistory = async (
           return isNaN(num) ? 0 : num;
         };
 
-         console.log('row cost price', parseNumber(row.costPerItem));
-
         const orderId = String(row.orderId || '').trim();
         const receiveQuantity = parseNumber(row.received);
         const lostQuantity = parseNumber(row.lostDamaged);
