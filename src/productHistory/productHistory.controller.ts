@@ -4,11 +4,11 @@ import createHttpError from 'http-errors';
 import mongoose from 'mongoose';
 import xlsx from 'xlsx';
 import productModel from '../product/product.model.js';
-import { ProductHistoryRow } from '../types/types.js';
-import productHistoryModel from './productHistory.model.js';
-import { checkStoreAccess } from '../utils/store-access.js';
 import storeModel from '../store/store.model.js';
 import { StoreAccessRequest } from '../types/store-access';
+import { ProductHistoryRow } from '../types/types.js';
+import { checkStoreAccess } from '../utils/store-access.js';
+import productHistoryModel from './productHistory.model.js';
 
 export const createProductHistory = async (
   req: Request,
@@ -315,8 +315,6 @@ export const getAllProductHistory = async (
   }
 };
 
-
-
 export const updateSingleField = async (
   req: Request,
   res: Response,
@@ -491,7 +489,6 @@ export const getProductHistoryList = async (
   }
 };
 
-
 // Bulk upload
 export const bulkUploadProductHistory = async (
   req: Request,
@@ -564,9 +561,12 @@ export const bulkUploadProductHistory = async (
           continue;
         }
 
-        const parseNumber = (value: any) => {
+        const parseNumber = (value: any): number => {
           if (value === null || value === undefined || value === '') return 0;
-          if (typeof value === 'string' && value.startsWith('=')) return 0;
+          if (typeof value === 'string') {
+            if (value.startsWith('=')) return 0;
+            value = value.replace(/[^0-9.-]+/g, '');
+          }
           const num = Number(value);
           return isNaN(num) ? 0 : num;
         };
