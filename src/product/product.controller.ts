@@ -4,9 +4,9 @@ import expressAsyncHandler from 'express-async-handler';
 import createHttpError from 'http-errors';
 import syncItemsFromAPI from '../service/syncItemsFromAPI.service.js';
 import storeModel from '../store/store.model.js';
-import productModel from './product.model.js';
-import { checkStoreAccess } from '../utils/store-access.js';
 import { StoreAccessRequest } from '../types/store-access';
+import { checkStoreAccess } from '../utils/store-access.js';
+import productModel from './product.model.js';
 
 export const getAllProducts = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -49,7 +49,6 @@ export const getAllProducts = expressAsyncHandler(
     }
   }
 );
-
 
 export const getMyDbAllProduct = expressAsyncHandler(
   async (req: StoreAccessRequest, res: Response, next: NextFunction) => {
@@ -98,9 +97,8 @@ export const getMyDbAllProduct = expressAsyncHandler(
       }
 
       const page = Math.max(Number(req.query.page) || 1, 1);
-      const limit = Math.min(Number(req.query.limit) || 50, 100);
+      const limit = Math.min(Number(req.query.limit) || 10, 100);
       const skip = (page - 1) * limit;
-
 
       const [products, total] = await Promise.all([
         productModel
@@ -117,8 +115,6 @@ export const getMyDbAllProduct = expressAsyncHandler(
 
       console.log('Fetched products:', products);
       console.log('Total number of products:', total);
-
-
 
       res.status(200).json({
         success: true,

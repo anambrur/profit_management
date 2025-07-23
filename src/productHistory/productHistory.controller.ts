@@ -292,7 +292,7 @@ export const getAllProductHistory = async (
 
     // Pagination
     const page = Math.max(Number(req.query.page) || 1, 1);
-    const limit = Math.min(Number(req.query.limit) || 20, 100);
+    const limit = Math.min(Number(req.query.limit) || 10, 100);
     const skip = (page - 1) * limit;
 
     pipeline.push({ $sort: { createdAt: -1 } });
