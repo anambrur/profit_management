@@ -52,7 +52,7 @@ const syncItemsFromAPI = async (
     const correlationId = uuid();
     const params: any = {
       limit: 200,
-      nextCursor: '*'
+      nextCursor: '*',
     };
 
     if (cursor) {
@@ -80,14 +80,13 @@ const syncItemsFromAPI = async (
       };
     }
 
-
     const productsData = res.data.ItemResponse || [];
     const nextCursor = res.data.nextCursor || null;
     const hasMore = Boolean(nextCursor);
     const totalItems = res.data.totalItems || 0;
 
     // 3. Process products
-    const existingProducts = await productModel.find({ storeId });
+    const existingProducts = await productModel.find({ storeId }).lean();
     const existingSkuMap = new Map(existingProducts.map((p) => [p.sku, p]));
 
     const newProducts: Product[] = [];
@@ -105,6 +104,7 @@ const syncItemsFromAPI = async (
       if (!existingProduct) {
         newProducts.push(apiItem);
       } else {
+        // @ts-ignore
         const needsUpdate = Object.keys(apiItem).some(
           (key) =>
             existingProduct[key as keyof Product] !==
