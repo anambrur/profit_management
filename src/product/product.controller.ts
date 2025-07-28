@@ -13,39 +13,201 @@ export const getAllProducts = expressAsyncHandler(
     try {
       const stores = await storeModel.find({ storeStatus: 'active' });
 
-      // Step 1: Fetch orders from all active stores
-      for (const store of stores) {
-        try {
-          const data = await syncItemsFromAPI(
+      if (stores.length === 0) {
+        return next(createHttpError(404, 'No active stores found'));
+      }
+
+      // Define proper types for our sync results
+      type SyncSuccessResult = {
+        success: true;
+        storeId: string;
+        data: {
+          newProducts: any[];
+          updatedProducts: any[];
+          failedProducts: any[];
+        };
+      };
+
+      type SyncErrorResult = {
+        success: false;
+        storeId: string;
+        error: string;
+        newProducts: number; // counts instead of arrays
+        updatedProducts: number;
+        failedProducts: number;
+      };
+
+      type SyncResult = SyncSuccessResult | SyncErrorResult;
+
+      // Process all stores in parallel
+      const syncResults = await Promise.allSettled(
+        stores.map((store) =>
+          syncItemsFromAPI(
             store.storeId,
             store.storeClientId,
             store._id.toString(),
             store.storeClientSecret
-          );
-          if (!data) {
-            return next(
-              createHttpError(
-                404,
-                'No products found or no new products to sync'
-              )
+          ).catch((error): SyncErrorResult => {
+            console.error(
+              `Error syncing products for store ${store.storeId}:`,
+              error
             );
-          }
+            return {
+              success: false,
+              storeId: store.storeId,
+              error: error.message,
+              newProducts: 0,
+              updatedProducts: 0,
+              failedProducts: 0,
+            };
+          })
+        )
+      );
 
-          res.status(200).json({
-            success: true,
-            message: 'Products synchronized successfully',
-            data,
-            count: data.length,
-          });
-          // allStoreOrders.push(...data);
-        } catch (error) {
-          console.error(`Error syncing products for store ${store.storeId}:`);
-          continue;
+      // Process results with proper type conversion
+      const results: SyncResult[] = syncResults.map((result) => {
+        if (result.status === 'fulfilled') {
+          // Ensure the fulfilled value matches our SyncResult type
+          if (result.value.success) {
+            return {
+              success: true,
+              storeId: result.value.storeId,
+              data: {
+                newProducts: result.value.data?.newProducts || [],
+                updatedProducts: result.value.data?.updatedProducts || [],
+                failedProducts: result.value.data?.failedProducts || [],
+              },
+            };
+          } else {
+            return {
+              success: false,
+              storeId: result.value.storeId,
+              error: result.value.error || 'Unknown error',
+              newProducts: 0,
+              updatedProducts: 0,
+              failedProducts: 0,
+            };
+          }
         }
-      }
+        return {
+          success: false,
+          storeId: 'unknown',
+          error: result.reason?.message || 'Unknown error',
+          newProducts: 0,
+          updatedProducts: 0,
+          failedProducts: 0,
+        };
+      });
+
+      const successfulSyncs = results.filter(
+        (result): result is SyncSuccessResult => result.success === true
+      );
+
+      const failedSyncs = results.filter(
+        (result): result is SyncErrorResult => result.success === false
+      );
+
+      // Aggregate all data with proper type safety
+      const allNewProducts = successfulSyncs.flatMap(
+        (result) => result.data.newProducts
+      );
+      const allUpdatedProducts = successfulSyncs.flatMap(
+        (result) => result.data.updatedProducts
+      );
+      const allFailedProducts = successfulSyncs.flatMap(
+        (result) => result.data.failedProducts
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Product sync completed for ${stores.length} stores`,
+        status: {
+          totalStores: stores.length,
+          successfulStores: successfulSyncs.length,
+          failedStores: failedSyncs.length,
+          totalProducts: allNewProducts.length + allUpdatedProducts.length,
+          newProducts: allNewProducts.length,
+          updatedProducts: allUpdatedProducts.length,
+          failedProducts: allFailedProducts.length,
+        },
+        details: {
+          failedSyncs: failedSyncs.map(({ storeId, error }) => ({
+            storeId,
+            error,
+          })),
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          version: '1.0',
+        },
+      });
     } catch (error) {
       console.error('Product synchronization failed:', error);
       next(createHttpError(500, 'Failed to synchronize products'));
+    }
+  }
+);
+
+
+
+// In your product controller file
+export const processStoreProducts = expressAsyncHandler(
+  async (req: Request, res: Response) => {
+    try {
+      const { storeId } = req.params;
+      const { nextCursor } = req.query;
+
+      const store = await storeModel.findOne({
+        storeId,
+        storeStatus: 'active',
+      });
+
+      if (!store) {
+        res.status(404).json({
+          message: 'Store not found or inactive',
+          success: false,
+        });
+        return;
+      }
+
+      const result = await syncItemsFromAPI(
+        store.storeId,
+        store.storeClientId,
+        store._id.toString(),
+        store.storeClientSecret,
+        nextCursor as string | undefined
+      );
+
+      if (!result.success) {
+        res.status(500).json({
+          message: result.error || 'Failed to process store products',
+          success: false,
+        });
+        return;
+      }
+
+      console.log(`Product processing completed for store ${storeId}`);
+
+      res.status(200).json({
+        message: 'Product processing completed',
+        success: true,
+        storeId: store.storeId,
+        status: {
+          totalItems: result.meta?.totalItems || 0,
+          newProducts: result.data?.newProducts.length || 0,
+          updatedProducts: result.data?.updatedProducts.length || 0,
+          failedProducts: result.data?.failedProducts.length || 0,
+        },
+        meta: {
+          nextCursor: result.meta?.nextCursor || null,
+          hasMore: result.meta?.hasMore || false,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        message: error.message || 'Failed to process store products',
+        success: false,
+      });
     }
   }
 );

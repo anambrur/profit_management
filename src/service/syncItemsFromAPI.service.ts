@@ -1,99 +1,222 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import axios from 'axios';
 import productModel from '../product/product.model.js';
 import productHistoryModel from '../productHistory/productHistory.model.js';
 import { Product } from '../types/types.js';
 import generateAccessToken from '../utils/generateAccessToken.js';
-import getAllProducts from '../utils/getAllProducts.js';
+import { v4 as uuid } from 'uuid';
+
+interface ProductSyncResult {
+  success: boolean;
+  storeId: string;
+  data?: {
+    newProducts: any[];
+    updatedProducts: any[];
+    failedProducts: any[];
+  };
+  meta?: {
+    nextCursor?: string | null;
+    hasMore?: boolean;
+    totalItems?: number;
+  };
+  error?: string;
+}
 
 const syncItemsFromAPI = async (
   storeId: string,
   storeClientId: string,
   storeObjectId: string,
-  storeClientSecret: string
-) => {
-  if (!storeId) {
-    throw new Error('Store ID is required');
+  storeClientSecret: string,
+  cursor?: string | null
+): Promise<ProductSyncResult> => {
+  if (!storeId || !storeClientId || !storeClientSecret) {
+    return {
+      success: false,
+      storeId,
+      error: 'Missing required store parameters',
+    };
   }
 
   try {
     // 1. Generate access token
     const token = await generateAccessToken(storeClientId, storeClientSecret);
-    if (!token) {
-      throw new Error('Failed to generate access token');
+    if (typeof token !== 'string') {
+      return {
+        success: false,
+        storeId,
+        error: 'Failed to generate access token',
+      };
     }
 
-    // 2. Fetch data from API
-    const productsData: Product[] = await getAllProducts(token);
-    if (!productsData || !Array.isArray(productsData)) {
-      throw new Error('Invalid products data received from API');
+    // 2. Fetch paginated data from API
+    const correlationId = uuid();
+    const params: any = {
+      limit: 200,
+      nextCursor: '*'
+    };
+
+    if (cursor) {
+      params.nextCursor = cursor;
     }
 
-    // 3. Get existing SKUs from DB
-    const existingItems = await productModel.find({}, 'sku');
-    const existingIds = new Set(existingItems.map((item) => item.sku));
-
-    // 4. Filter new items only
-    const filteredItems = productsData.filter((apiItem: Product) => {
-      if (!apiItem.sku) {
-        console.warn('Product missing SKU:', apiItem.productName);
-        return false;
-      }
-      return !existingIds.has(apiItem.sku);
+    const res = await axios({
+      method: 'GET',
+      url: 'https://marketplace.walmartapis.com/v3/items',
+      params,
+      headers: {
+        'WM_SEC.ACCESS_TOKEN': token,
+        'WM_QOS.CORRELATION_ID': correlationId,
+        'WM_SVC.NAME': 'Walmart Marketplace',
+        Accept: 'application/json',
+      },
+      timeout: 30000,
     });
 
-    if (filteredItems.length === 0) {
-      console.log('No new items to insert. All data already exists.');
-      return [];
+    if (!res.data?.ItemResponse) {
+      return {
+        success: false,
+        storeId,
+        error: 'Invalid response structure from Walmart API',
+      };
     }
 
-    const newProducts = filteredItems.map((apiItem: Product) => ({
-      mart: apiItem.mart,
-      storeId: storeId,
-      sku: apiItem.sku,
-      condition: apiItem.condition,
-      availability: apiItem.availability,
-      wpid: apiItem.wpid,
-      upc: apiItem.upc,
-      gtin: apiItem.gtin,
-      productName: apiItem.productName,
-      productType: apiItem.productType,
-      publishedStatus: apiItem.publishedStatus,
-      lifecycleStatus: apiItem.lifecycleStatus,
-    }));
 
+    const productsData = res.data.ItemResponse || [];
+    const nextCursor = res.data.nextCursor || null;
+    const hasMore = Boolean(nextCursor);
+    const totalItems = res.data.totalItems || 0;
 
-    // 5. Insert into productModel
-    const insertedProducts = await productModel.insertMany(newProducts);
+    // 3. Process products
+    const existingProducts = await productModel.find({ storeId });
+    const existingSkuMap = new Map(existingProducts.map((p) => [p.sku, p]));
 
-    // 6. Prepare product history records using inserted ObjectIds
-    const purchaseHistoryItems = insertedProducts.map((product, index) => ({
-      productId: product._id, // <-- This is the actual ObjectId
-      storeID: storeObjectId,
-      orderId: '',
-      purchaseQuantity: 0,
-      receiveQuantity: 0,
-      lostQuantity: 0,
-      costOfPrice: 0,
-      sendToWFS: 0,
-      sellPrice: filteredItems[index]?.price?.amount || 0,
-      totalPrice: 0,
-      email: '',
-      card: '',
-      supplier: {
-        name: '',
-        link: '',
-      },
-      status: '',
-      upc: filteredItems[index]?.upc || '',
-    }));
+    const newProducts: Product[] = [];
+    const updatedProducts: Product[] = [];
+    const failedProducts: Product[] = [];
 
-    // 7. Insert into productHistoryModel
-    await productHistoryModel.insertMany(purchaseHistoryItems);
-    
+    for (const apiItem of productsData) {
+      if (!apiItem.sku) {
+        failedProducts.push({ ...apiItem, _syncError: 'Missing SKU' });
+        continue;
+      }
 
-    return insertedProducts;
-  } catch (err) {
-    console.error('❌ Error in syncItemsFromAPI:');
-    throw err;
+      const existingProduct = existingSkuMap.get(apiItem.sku);
+
+      if (!existingProduct) {
+        newProducts.push(apiItem);
+      } else {
+        const needsUpdate = Object.keys(apiItem).some(
+          (key) =>
+            existingProduct[key as keyof Product] !==
+            apiItem[key as keyof Product]
+        );
+        if (needsUpdate) updatedProducts.push(apiItem);
+      }
+    }
+
+    // 4. Database operations
+    const session = await productModel.startSession();
+    session.startTransaction();
+
+    try {
+      // Insert new products
+      const insertedProducts =
+        newProducts.length > 0
+          ? await productModel.insertMany(
+              newProducts.map((item) => ({
+                ...item,
+                storeId,
+                price: {
+                  amount: item.price?.amount || 0,
+                  currency: item.price?.currency || 'USD',
+                },
+                lastSynced: new Date(),
+              })),
+              { session }
+            )
+          : [];
+
+      // Update existing products
+      const updateOps = updatedProducts.map((item) => ({
+        updateOne: {
+          filter: { sku: item.sku, storeId },
+          update: {
+            $set: {
+              ...item,
+              price: {
+                amount: item.price?.amount || 0,
+                currency: item.price?.currency || 'USD',
+              },
+              lastSynced: new Date(),
+              lastUpdated: new Date(),
+            },
+          },
+        },
+      }));
+
+      const updatedCount =
+        updateOps.length > 0
+          ? (await productModel.bulkWrite(updateOps, { session })).modifiedCount
+          : 0;
+
+      // Create history records
+      const historyRecords = [
+        ...insertedProducts.map((product) => ({
+          productId: product._id,
+          storeID: storeObjectId,
+          sellPrice: product.price?.amount || 0,
+          upc: product.upc || '',
+          status: 'synced',
+          syncType: 'initial',
+          timestamp: new Date(),
+        })),
+        ...updatedProducts.map((product) => ({
+          productId: existingSkuMap.get(product.sku ?? '')?._id,
+          storeID: storeObjectId,
+          sellPrice: product.price?.amount || 0,
+          upc: product.upc || '',
+          status: 'synced',
+          syncType: 'update',
+          timestamp: new Date(),
+        })),
+      ];
+
+      if (historyRecords.length > 0) {
+        await productHistoryModel.insertMany(historyRecords, { session });
+      }
+
+      await session.commitTransaction();
+
+      return {
+        success: true,
+        storeId,
+        data: {
+          newProducts: insertedProducts,
+          updatedProducts: updatedProducts.slice(0, updatedCount),
+          failedProducts,
+        },
+        meta: {
+          nextCursor,
+          hasMore,
+          totalItems,
+        },
+      };
+    } catch (dbError: any) {
+      await session.abortTransaction();
+      return {
+        success: false,
+        storeId,
+        error: `Database operation failed: ${dbError.message}`,
+      };
+    } finally {
+      await session.endSession();
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      storeId,
+      error: err.message,
+    };
   }
 };
 

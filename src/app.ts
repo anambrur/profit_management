@@ -19,6 +19,14 @@ import userRouter from './user/user.routes.js';
 
 const app: Application = express();
 
+// Create a skip function for morgan
+const shouldSkipLogging = (req: express.Request) => {
+  return (
+    req.originalUrl.startsWith('/api/orders/process-store-orders/') ||
+    req.originalUrl.startsWith('/api/products/process-store-products/')
+  );
+};
+
 if (envConfig.nodeEnv !== 'development') {
   app.use(helmet());
   app.use(
@@ -27,7 +35,8 @@ if (envConfig.nodeEnv !== 'development') {
       credentials: true,
     })
   );
-  app.use(morgan('combined'));
+  // app.use(morgan('combined'));
+  app.use(morgan('combined', { skip: shouldSkipLogging }));
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
@@ -46,7 +55,8 @@ if (envConfig.nodeEnv !== 'development') {
       credentials: true,
     })
   );
-  app.use(morgan('dev'));
+  // app.use(morgan('dev'));
+  app.use(morgan('dev', { skip: shouldSkipLogging }));
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
