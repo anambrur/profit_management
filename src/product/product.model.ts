@@ -83,6 +83,10 @@ const productSchema = new mongoose.Schema(
       type: String,
       index: true, // Alternative store reference
     },
+    shelf: {
+      type: [String],
+      default: [],
+    },
   },
   {
     timestamps: true,

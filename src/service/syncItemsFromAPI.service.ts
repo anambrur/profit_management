@@ -104,7 +104,6 @@ const syncItemsFromAPI = async (
       if (!existingProduct) {
         newProducts.push(apiItem);
       } else {
-        // @ts-ignore
         const needsUpdate = Object.keys(apiItem).some(
           (key) =>
             existingProduct[key as keyof Product] !==
