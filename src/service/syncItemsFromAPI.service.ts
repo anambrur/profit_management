@@ -52,7 +52,7 @@ const syncItemsFromAPI = async (
     const correlationId = uuid();
     const params: any = {
       limit: 200,
-      nextCursor: '*'
+      nextCursor: '*',
     };
 
     if (cursor) {
@@ -80,7 +80,6 @@ const syncItemsFromAPI = async (
       };
     }
 
-
     const productsData = res.data.ItemResponse || [];
     const nextCursor = res.data.nextCursor || null;
     const hasMore = Boolean(nextCursor);
@@ -105,6 +104,7 @@ const syncItemsFromAPI = async (
       if (!existingProduct) {
         newProducts.push(apiItem);
       } else {
+        // @ts-ignore
         const needsUpdate = Object.keys(apiItem).some(
           (key) =>
             existingProduct[key as keyof Product] !==
