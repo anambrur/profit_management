@@ -43,9 +43,18 @@ const productSchema = new mongoose.Schema(
     },
     productName: {
       type: String,
-      required: true,
       trim: true,
       index: 'text', // For text search
+    },
+    price: {
+      amount: {
+        type: Number,
+        default: 0,
+      },
+      currency: {
+        type: String,
+        default: 'USD',
+      },
     },
     productType: {
       type: String,

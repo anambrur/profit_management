@@ -1,7 +1,7 @@
-interface Price {
-  currency?: string;
-  amount?: number;
-}
+// interface Price {
+//   currency?: string;
+//   amount?: number;
+// }
 
 export interface Product {
   mart?: string;
@@ -14,10 +14,14 @@ export interface Product {
   productName?: string;
   shelf?: string[];
   productType?: string;
-  price?: Price;
+  price: {
+    currency?: string;
+    amount: number;
+  };
   publishedStatus?: string;
   lifecycleStatus?: string;
   isDuplicate?: boolean;
+  _syncError: string;
 }
 
 export interface Order {

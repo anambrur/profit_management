@@ -10,12 +10,23 @@ import { StoreAccessRequest } from '../types/store-access';
 import { checkStoreAccess } from '../utils/store-access.js';
 import orderModel from './order.model.js';
 
+
+//api singale store order facing
 export const processStoreOrders = expressAsyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const { storeId } = req.params;
+      const cursors: Record<string, string> = {};
 
-      console.log(`Processing orders for store ${storeId}`);
+      // Extract and decode cursor parameters
+      Object.keys(req.query).forEach((key) => {
+        if (key.endsWith('_cursor')) {
+          const shipNodeType = key.replace('_cursor', '');
+          // cursors[shipNodeType] = decodeURIComponent(req.query[key] as string);
+          cursors[shipNodeType] = req.query[key] as string;
+        }
+      });
+
 
       const store = await storeModel.findOne({
         storeId,
@@ -33,10 +44,11 @@ export const processStoreOrders = expressAsyncHandler(
       const result = await syncOrdersFromAPI(
         store.storeId,
         store.storeClientId,
-        store.storeClientSecret
+        store.storeClientSecret,
+        cursors
       );
 
-      if (result.length === 0) {
+      if (result.orders.length === 0) {
         res.status(200).json({
           message: 'No new orders found to process',
           success: true,
@@ -47,12 +59,14 @@ export const processStoreOrders = expressAsyncHandler(
             skippedOrders: [],
             createdOrders: [],
           },
+          meta: result.meta,
         });
         return;
       }
+      
 
       const { stockedAlerts, failedOrders, skippedOrders, createdOrders } =
-        await transformOrdersData(result);
+        await transformOrdersData(result.orders);
 
       console.log(`Order processing completed for store ${storeId}`);
 
@@ -61,7 +75,7 @@ export const processStoreOrders = expressAsyncHandler(
         success: true,
         storeId: store.storeId,
         status: {
-          totalFetched: result.length,
+          totalFetched: result.orders.length,
           created: createdOrders.length,
           skipped: skippedOrders.length,
           failed: failedOrders.length,
@@ -73,6 +87,7 @@ export const processStoreOrders = expressAsyncHandler(
           skippedOrders,
           createdOrders,
         },
+        meta: result.meta,
       });
     } catch (error: any) {
       console.error(`Error processing store ${req.params.storeId}:`, error);
@@ -107,9 +122,7 @@ export const getOrders = expressAsyncHandler(
         status?: string;
       };
 
-      console.log('search', search);
-      console.log('storeId', storeId);
-      console.log('status', status);
+     
 
       // Build dynamic filter
       const filter: any = {};
@@ -135,7 +148,6 @@ export const getOrders = expressAsyncHandler(
         };
       }
 
-      // console.log('filter', filter);
 
       // Add status filter if provided
       if (status) {
