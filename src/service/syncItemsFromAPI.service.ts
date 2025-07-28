@@ -87,7 +87,7 @@ const syncItemsFromAPI = async (
     const totalItems = res.data.totalItems || 0;
 
     // 3. Process products
-    const existingProducts = await productModel.find({ storeId });
+    const existingProducts = await productModel.find({ storeId }).lean();
     const existingSkuMap = new Map(existingProducts.map((p) => [p.sku, p]));
 
     const newProducts: Product[] = [];
