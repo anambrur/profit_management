@@ -104,11 +104,28 @@ const syncItemsFromAPI = async (
       if (!existingProduct) {
         newProducts.push(apiItem);
       } else {
-        const needsUpdate = Object.keys(apiItem).some(
-          (key) =>
-            existingProduct[key as keyof Product] !==
-            apiItem[key as keyof Product]
-        );
+        // const needsUpdate = Object.keys(apiItem).some(
+        //   (key) =>
+        //     existingProduct[key as keyof Product] !==
+        //     apiItem[key as keyof Product]
+        // );
+
+        const needsUpdate = Object.keys(apiItem).some((key) => {
+          // Only compare fields that exist in both objects
+          if (key in existingProduct && key in apiItem) {
+            // Special handling for price object
+            if (key === 'price') {
+              return (
+                existingProduct.price?.amount !== apiItem.price?.amount ||
+                existingProduct.price?.currency !== apiItem.price?.currency
+              );
+            }
+            // @ts-ignore
+            return existingProduct[key] !== apiItem[key];
+          }
+          return false;
+        });
+
         if (needsUpdate) updatedProducts.push(apiItem);
       }
     }

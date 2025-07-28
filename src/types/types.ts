@@ -1,7 +1,7 @@
-// interface Price {
-//   currency?: string;
-//   amount?: number;
-// }
+interface Price {
+  currency?: string;
+  amount?: number;
+}
 
 export interface Product {
   mart?: string;
@@ -12,12 +12,8 @@ export interface Product {
   upc?: string;
   gtin?: string;
   productName?: string;
-  shelf?: string[];
   productType?: string;
-  price: {
-    currency?: string;
-    amount: number;
-  };
+  price: Price;
   publishedStatus?: string;
   lifecycleStatus?: string;
   isDuplicate?: boolean;
