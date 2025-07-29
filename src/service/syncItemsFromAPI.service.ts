@@ -50,14 +50,12 @@ const syncItemsFromAPI = async (
 
     // 2. Fetch paginated data from API
     const correlationId = uuid();
-    const params: any = {
-      limit: 200,
-    };
-
-    if (cursor) {
+    const params: any = { limit: 200 };
+    
+    if (cursor && cursor !== '*') {
       params.nextCursor = cursor;
     } else {
-      params.nextCursor = '*'; // Only set default if no cursor provided
+      params.nextCursor = '*';
     }
 
     const res = await axios({
@@ -127,7 +125,6 @@ const syncItemsFromAPI = async (
         //   return false;
         // });
 
-        
         const needsUpdate = Object.keys(apiItem).some((key) => {
           // Skip internal or special fields
           if (
@@ -213,6 +210,7 @@ const syncItemsFromAPI = async (
         ...insertedProducts.map((product) => ({
           productId: product._id,
           storeID: storeObjectId,
+          orderId: '',
           sellPrice: product.price?.amount || 0,
           upc: product.upc || '',
           status: 'synced',
@@ -222,6 +220,7 @@ const syncItemsFromAPI = async (
         ...updatedProducts.map((product) => ({
           productId: existingSkuMap.get(product.sku ?? '')?._id,
           storeID: storeObjectId,
+          orderId: '',
           sellPrice: product.price?.amount || 0,
           upc: product.upc || '',
           status: 'synced',

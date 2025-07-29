@@ -84,3 +84,18 @@ const productHistorySchema = new mongoose.Schema(
 );
 
 export default mongoose.model('ProductHistory', productHistorySchema);
+
+// Create error model schema
+const errorSchema = new mongoose.Schema({
+  uploadId: String,
+  rowIndex: Number,
+  rowData: Object,
+  errorType: String,
+  errorMessage: String,
+  timestamp: { type: Date, default: Date.now },
+  resolved: { type: Boolean, default: false }
+});
+
+const UploadError = mongoose.model('UploadError', errorSchema);
+
+export { UploadError };
