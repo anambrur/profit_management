@@ -119,7 +119,7 @@ const OrderCornJob = () => {
 
 
 const ProductCornJob = () => {
-  cron.schedule('*/25 * * * *', async () => {
+  cron.schedule('*/3 * * * *', async () => {
     try {
       sendNotification(
         'info',
