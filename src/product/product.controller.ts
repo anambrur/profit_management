@@ -222,6 +222,7 @@ export const getMyDbAllProduct = expressAsyncHandler(
 
       // 1. Handle store filtering
       if (req.query.storeID) {
+        console.log('Specific store requested:11111111111');
         // Specific store requested - verify access
         const storeID = String(req.query.storeID);
         if (!checkStoreAccess(user, storeID)) {
@@ -229,6 +230,7 @@ export const getMyDbAllProduct = expressAsyncHandler(
         }
         query.storeId = storeID; // Note: using storeId (not storeID) to match schema
       } else if (!(await user.hasPermissionTo('store.view'))) {
+        console.log('Specific store requested. 3333333333:');
         // No specific store - filter by allowed stores
         const allowedStores = await storeModel
           .find({
@@ -262,6 +264,8 @@ export const getMyDbAllProduct = expressAsyncHandler(
       const limit = Math.min(Number(req.query.limit) || 10, 100);
       const skip = (page - 1) * limit;
 
+      // console.log('Query:', query);
+
       const [products, total] = await Promise.all([
         productModel
           .find(query)
@@ -275,8 +279,8 @@ export const getMyDbAllProduct = expressAsyncHandler(
         return next(createHttpError(404, 'No products found'));
       }
 
-      console.log('Fetched products:', products);
-      console.log('Total number of products:', total);
+      // console.log('Fetched products:', products);
+      // console.log('Total number of products:', total);
 
       res.status(200).json({
         success: true,
