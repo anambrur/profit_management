@@ -52,11 +52,12 @@ const syncItemsFromAPI = async (
     const correlationId = uuid();
     const params: any = {
       limit: 200,
-      nextCursor: '*',
     };
 
     if (cursor) {
       params.nextCursor = cursor;
+    } else {
+      params.nextCursor = '*'; // Only set default if no cursor provided
     }
 
     const res = await axios({
@@ -69,7 +70,7 @@ const syncItemsFromAPI = async (
         'WM_SVC.NAME': 'Walmart Marketplace',
         Accept: 'application/json',
       },
-      timeout: 30000,
+      timeout: 60000,
     });
 
     if (!res.data?.ItemResponse) {
@@ -110,19 +111,51 @@ const syncItemsFromAPI = async (
         //     apiItem[key as keyof Product]
         // );
 
+        // const needsUpdate = Object.keys(apiItem).some((key) => {
+        //   // Only compare fields that exist in both objects
+        //   if (key in existingProduct && key in apiItem) {
+        //     // Special handling for price object
+        //     if (key === 'price') {
+        //       return (
+        //         existingProduct.price?.amount !== apiItem.price?.amount ||
+        //         existingProduct.price?.currency !== apiItem.price?.currency
+        //       );
+        //     }
+        //     // @ts-ignore
+        //     return existingProduct[key] !== apiItem[key];
+        //   }
+        //   return false;
+        // });
+
+        
         const needsUpdate = Object.keys(apiItem).some((key) => {
-          // Only compare fields that exist in both objects
-          if (key in existingProduct && key in apiItem) {
-            // Special handling for price object
-            if (key === 'price') {
-              return (
-                existingProduct.price?.amount !== apiItem.price?.amount ||
-                existingProduct.price?.currency !== apiItem.price?.currency
-              );
-            }
-            // @ts-ignore
-            return existingProduct[key] !== apiItem[key];
+          // Skip internal or special fields
+          if (
+            key.startsWith('_') ||
+            key === 'storeId' ||
+            key === 'lastSynced'
+          ) {
+            return false;
           }
+
+          // Special handling for price object
+          if (key === 'price') {
+            return (
+              existingProduct.price?.amount !== apiItem.price?.amount ||
+              existingProduct.price?.currency !== apiItem.price?.currency
+            );
+          }
+
+          // Compare other fields safely
+          const existingValue =
+            existingProduct[key as keyof typeof existingProduct];
+          const apiValue = apiItem[key as keyof typeof apiItem];
+
+          // Compare only if both values exist
+          if (existingValue !== undefined && apiValue !== undefined) {
+            return JSON.stringify(existingValue) !== JSON.stringify(apiValue);
+          }
+
           return false;
         });
 
