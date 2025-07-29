@@ -758,7 +758,7 @@ export const bulkUploadProductHistory = async (
 ) => {
   const session = await mongoose.startSession();
   session.startTransaction();
-  let uploadId: string;
+  let uploadId: string | undefined;
 
   try {
     if (!req.file) {
@@ -1034,34 +1034,34 @@ export const bulkUploadProductHistory = async (
     }
 
     // Execute all operations in parallel
-    // const [updateResults, insertResults, , productUpdateResults] =
-    //   await Promise.all([
-    //     bulkUpdates.length > 0
-    //       ? productHistoryModel.bulkWrite(bulkUpdates, { session })
-    //       : null,
-    //     bulkInserts.length > 0
-    //       ? productHistoryModel.insertMany(bulkInserts, { session })
-    //       : null,
-    //     errorInserts.length > 0
-    //       ? UploadError.insertMany(errorInserts, { session })
-    //       : null,
-    //     productUpdates.size > 0
-    //       ? productModel.bulkWrite(
-    //           Array.from(productUpdates.entries()).map(
-    //             ([productId, change]) => ({
-    //               updateOne: {
-    //                 filter: { _id: new mongoose.Types.ObjectId(productId) },
-    //                 update: {
-    //                   $inc: { available: change },
-    //                   $set: { lastInventoryUpdate: new Date() },
-    //                 },
-    //               },
-    //             })
-    //           ),
-    //           { session }
-    //         )
-    //       : null,
-    //   ]);
+    const [updateResults, insertResults, , productUpdateResults] =
+      await Promise.all([
+        bulkUpdates.length > 0
+          ? productHistoryModel.bulkWrite(bulkUpdates, { session })
+          : null,
+        bulkInserts.length > 0
+          ? productHistoryModel.insertMany(bulkInserts, { session })
+          : null,
+        errorInserts.length > 0
+          ? UploadError.insertMany(errorInserts, { session })
+          : null,
+        productUpdates.size > 0
+          ? productModel.bulkWrite(
+              Array.from(productUpdates.entries()).map(
+                ([productId, change]) => ({
+                  updateOne: {
+                    filter: { _id: new mongoose.Types.ObjectId(productId) },
+                    update: {
+                      $inc: { available: change },
+                      $set: { lastInventoryUpdate: new Date() },
+                    },
+                  },
+                })
+              ),
+              { session }
+            )
+          : null,
+      ]);
 
     await session.commitTransaction();
 
@@ -1082,7 +1082,7 @@ export const bulkUploadProductHistory = async (
         sampleErrors: errorInserts.slice(0, 5),
       },
     });
-  } catch (err) {
+  } catch (err: any) {
     await session.abortTransaction();
     console.error('Bulk upload failed:', err);
 
