@@ -775,13 +775,20 @@ export const bulkUploadProductHistory = async (
     });
   } catch (err: any) {
     await session.abortTransaction();
-    console.error('Bulk upload failed:', err);
+    console.error('Bulk upload failed:', {
+      message: err.message,
+      stack: err.stack,
+      code: err.code,
+      name: err.name,
+      body: req.body, // Log the request body
+      fileSize: req.file?.size,
+      headers: req.headers,
+    });
     next(err);
   } finally {
     session.endSession();
   }
 };
-
 
 // old working
 // export const bulkUploadProductHistory = async (
