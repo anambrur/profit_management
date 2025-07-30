@@ -93,7 +93,7 @@ const errorSchema = new mongoose.Schema({
   errorType: String,
   errorMessage: String,
   timestamp: { type: Date, default: Date.now },
-  resolved: { type: Boolean, default: false }
+  resolved: { type: Boolean, default: false },
 });
 
 const UploadError = mongoose.model('UploadError', errorSchema);

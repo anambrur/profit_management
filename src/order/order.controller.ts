@@ -10,7 +10,6 @@ import { StoreAccessRequest } from '../types/store-access';
 import { checkStoreAccess } from '../utils/store-access.js';
 import orderModel from './order.model.js';
 
-
 //api singale store order facing
 export const processStoreOrders = expressAsyncHandler(
   async (req: Request, res: Response): Promise<void> => {
@@ -26,7 +25,6 @@ export const processStoreOrders = expressAsyncHandler(
           cursors[shipNodeType] = req.query[key] as string;
         }
       });
-
 
       const store = await storeModel.findOne({
         storeId,
@@ -63,7 +61,6 @@ export const processStoreOrders = expressAsyncHandler(
         });
         return;
       }
-      
 
       const { stockedAlerts, failedOrders, skippedOrders, createdOrders } =
         await transformOrdersData(result.orders);
@@ -114,7 +111,7 @@ export const getOrders = expressAsyncHandler(
 
       const {
         search = '',
-        storeId,
+        storeId = '',
         status,
       } = req.query as {
         search?: string;
@@ -122,25 +119,24 @@ export const getOrders = expressAsyncHandler(
         status?: string;
       };
 
-     
-
-      // Build dynamic filter
       const filter: any = {};
 
-      // Apply store filtering based on user permissions
+      // 🔥 Handle multiple storeId(s)
+      let storeIds: string[] = [];
       if (storeId) {
-        // If specific store is requested, verify access
-        if (!checkStoreAccess(user, storeId)) {
-          return next(createHttpError(403, 'No access to this store'));
+        storeIds = storeId.split(',').map((id) => id.trim());
+
+        // 🔒 Check if user has access to all requested stores
+        const unauthorized = storeIds.some((id) => !checkStoreAccess(user, id));
+        if (unauthorized) {
+          return next(createHttpError(403, 'No access to one or more stores'));
         }
-        filter.storeId = storeId;
+
+        filter.storeId = { $in: storeIds };
       } else {
-        // If no store specified, filter by user's allowed stores
-        // Unless user has permission to view all stores
+        // 🛡 Filter based on user allowed stores
         const allowedStores = await storeModel
-          .find({
-            _id: { $in: user.allowedStores },
-          })
+          .find({ _id: { $in: user.allowedStores } })
           .select('storeId -_id');
 
         filter.storeId = {
@@ -148,14 +144,14 @@ export const getOrders = expressAsyncHandler(
         };
       }
 
-
-      // Add status filter if provided
+      // 🎯 Optional status filter
       if (status) {
         filter.status = status;
       }
 
+      // 🔍 Optional search filter
       if (search) {
-        const regex = new RegExp(search, 'i'); // Case-insensitive search
+        const regex = new RegExp(search, 'i');
         filter.$or = [
           { customerOrderId: regex },
           { 'products.productName': regex },

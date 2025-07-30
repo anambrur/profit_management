@@ -14,13 +14,19 @@ export const getProfit = async (
     const storeId = req.query.storeId?.toString();
     const startDate = req.query.startDate?.toString();
     const endDate = req.query.endDate?.toString();
+    const storeIds = req.query.storeIds?.toString();
+    const storeIdArray = storeIds
+      ? storeIds.split(',')
+      : storeId
+        ? [storeId]
+        : undefined;
 
     // Parallel fetching of fixed period data
     const [today, yesterday, thisMonth, lastMonth] = await Promise.all([
-      getPeriodData('today', now, storeId),
-      getPeriodData('yesterday', now, storeId),
-      getPeriodData('thisMonth', now, storeId),
-      getPeriodData('lastMonth', now, storeId),
+      getPeriodData('today', now, storeIdArray),
+      getPeriodData('yesterday', now, storeIdArray),
+      getPeriodData('thisMonth', now, storeIdArray),
+      getPeriodData('lastMonth', now, storeIdArray),
     ]);
 
     const responseData: any = {
@@ -44,7 +50,11 @@ export const getProfit = async (
         });
       }
 
-      const customData = await getSalesData(customStart, customEnd, storeId);
+      const customData = await getSalesData(
+        customStart,
+        customEnd,
+        storeIdArray
+      );
       responseData.custom = customData;
       responseData.customPeriod = {
         start: customStart,
@@ -66,7 +76,7 @@ export const getProfit = async (
 };
 
 // Helper function to get data for a specific period
-async function getPeriodData(period: string, now: Date, storeId?: string) {
+async function getPeriodData(period: string, now: Date, storeIds?: string[]) {
   let startDate, endDate;
 
   switch (period) {
@@ -100,19 +110,23 @@ async function getPeriodData(period: string, now: Date, storeId?: string) {
       throw new Error('Invalid period');
   }
 
-  return await getSalesData(startDate, endDate, storeId);
+  return await getSalesData(startDate, endDate, storeIds);
 }
 
 // Sales data calculation (same as before)
-async function getSalesData(startDate: Date, endDate: Date, storeId?: string) {
+async function getSalesData(
+  startDate: Date,
+  endDate: Date,
+  storeIds?: string[]
+) {
   // Create base query
   const query: any = {
     orderDate: { $gte: startDate, $lte: endDate },
   };
 
   // Add storeId filter if provided
-  if (storeId) {
-    query.storeId = storeId;
+  if (storeIds && storeIds.length > 0) {
+    query.storeId = { $in: storeIds };
   }
 
   const orders = await orderModel.find(query);

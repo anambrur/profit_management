@@ -1,9 +1,8 @@
 import { Router } from 'express';
 import authenticateUser from '../middlewares/authenticateUser.js';
 import { hasPermission } from '../middlewares/checkPermission.js';
-import { csvUpload } from '../middlewares/multer.js';
 import {
-  bulkUploadProductHistory,
+  // bulkUploadProductHistory,
   createProductHistory,
   deleteProduct,
   getAllProductHistory,
@@ -54,13 +53,13 @@ productHistoryRouter.delete(
   }
 );
 
-productHistoryRouter.post(
-  '/upload-product-history',
-  csvUpload.single('file'),
-  authenticateUser,
-  hasPermission('product-history:create'),
-  (req, res, next) => {
-    Promise.resolve(bulkUploadProductHistory(req, res, next)).catch(next);
-  }
-);
+// productHistoryRouter.post(
+//   '/upload-product-history',
+//   csvUpload.single('file'),
+//   authenticateUser,
+//   hasPermission('product-history:create'),
+//   (req, res, next) => {
+//     Promise.resolve(bulkUploadProductHistory(req, res, next)).catch(next);
+//   }
+// );
 export default productHistoryRouter;
