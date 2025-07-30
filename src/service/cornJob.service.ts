@@ -119,7 +119,7 @@ const OrderCornJob = () => {
 
 
 const ProductCornJob = () => {
-  cron.schedule('*/5 * * * *', async () => {
+  cron.schedule('*/20 * * * *', async () => {
     try {
       // Start notification with timestamp
       const startTime = new Date();
@@ -202,7 +202,7 @@ const ProductCornJob = () => {
                   throw err;
                 });
 
-              
+
               const processingTime = Math.round(
                 (Date.now() - pageStartTime) / 1000
               );
