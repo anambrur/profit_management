@@ -497,7 +497,11 @@ export const bulkUploadProductHistory = async (
   next: NextFunction
 ) => {
   const session = await mongoose.startSession();
-  session.startTransaction();
+  session.startTransaction({
+    maxCommitTimeMS: 120000, // 60 seconds timeout
+    readConcern: { level: 'snapshot' },
+    writeConcern: { w: 'majority', wtimeout: 5000 },
+  });
 
   try {
     if (!req.file) {
@@ -567,7 +571,7 @@ export const bulkUploadProductHistory = async (
     const bulkInserts = [];
     const productUpdates = new Map<string, number>();
     const skippedProducts = [];
-    const upcBatchSize = 100;
+    const upcBatchSize = 20;
 
     const upcBatches = Array.from(productGroups.keys()).reduce(
       (batches: string[][], upc, i) => {
