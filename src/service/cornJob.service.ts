@@ -202,7 +202,7 @@ const ProductCornJob = () => {
                   throw err;
                 });
 
-              
+
               const processingTime = Math.round(
                 (Date.now() - pageStartTime) / 1000
               );
