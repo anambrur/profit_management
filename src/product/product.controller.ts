@@ -148,8 +148,6 @@ export const getAllProducts = expressAsyncHandler(
   }
 );
 
-
-
 // In your product controller file
 export const processStoreProducts = expressAsyncHandler(
   async (req: Request, res: Response) => {
@@ -216,39 +214,43 @@ export const getMyDbAllProduct = expressAsyncHandler(
   async (req: StoreAccessRequest, res: Response, next: NextFunction) => {
     try {
       const user = req.user!;
-      const query: any = {};
       const escapeRegex = (text: string) =>
         text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-      // 1. Handle store filtering
-      if (req.query.storeID) {
-        console.log('Specific store requested:11111111111');
-        // Specific store requested - verify access
-        const storeID = String(req.query.storeID);
-        if (!checkStoreAccess(user, storeID)) {
+      // 🔍 Build match query
+      const match: any = {};
+
+      const rawStoreIds = req.query.storeIds?.toString();
+      const individualStoreId = req.query.storeID?.toString();
+
+      if (rawStoreIds) {
+        const storeIdsArray = rawStoreIds.split(',');
+        for (const storeId of storeIdsArray) {
+          if (!checkStoreAccess(user, storeId)) {
+            return next(createHttpError(403, `No access to store: ${storeId}`));
+          }
+        }
+        match.storeId = { $in: storeIdsArray };
+      } else if (individualStoreId) {
+        if (!checkStoreAccess(user, individualStoreId)) {
           return next(createHttpError(403, 'No access to this store'));
         }
-        query.storeId = storeID; // Note: using storeId (not storeID) to match schema
+        match.storeId = individualStoreId;
       } else if (!(await user.hasPermissionTo('store.view'))) {
-        console.log('Specific store requested. 3333333333:');
-        // No specific store - filter by allowed stores
         const allowedStores = await storeModel
-          .find({
-            _id: { $in: user.allowedStores },
-          })
-          .select('storeId -_id');
+          .find({ _id: { $in: user.allowedStores } })
+          .select('storeId');
 
-        query.storeId = {
+        match.storeId = {
           $in: allowedStores.map((store) => store.storeId),
         };
       }
 
-      // 2. Handle other filters
+      // 🔍 Handle search
       if (req.query.search) {
-        const rawSearch = String(req.query.search).trim();
-        const safeSearch = escapeRegex(rawSearch);
+        const safeSearch = escapeRegex(String(req.query.search).trim());
         const regex = new RegExp(safeSearch, 'i');
-        query.$or = [
+        match.$or = [
           { productName: regex },
           { title: regex },
           { sku: regex },
@@ -256,31 +258,74 @@ export const getMyDbAllProduct = expressAsyncHandler(
         ];
       }
 
+      // 🔍 Handle availability filter
       if (req.query.availability) {
-        query.availability = String(req.query.availability);
+        match.availability = String(req.query.availability);
       }
 
+      // 📦 Pagination
       const page = Math.max(Number(req.query.page) || 1, 1);
       const limit = Math.min(Number(req.query.limit) || 10, 100);
       const skip = (page - 1) * limit;
 
-      // console.log('Query:', query);
+      // 🧠 Aggregation with lookup
+      const pipeline: any[] = [
+        { $match: match },
+        {
+          $lookup: {
+            from: 'stores',
+            localField: 'storeId', // Product.storeId (string)
+            foreignField: 'storeId', // Store.storeId (string)
+            as: 'store',
+          },
+        },
+        {
+          $unwind: {
+            path: '$store',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            productName: 1,
+            sku: 1,
+            upc: 1,
+            gtin: 1,
+            productType: 1,
+            condition: 1,
+            wpid: 1,
+            lifecycleStatus: 1,
+            publishedStatus: 1,
+            available: 1,
+            storeId: 1,
+            storeName: '$store.storeName', // ✅ only store name
+            availability: 1,
+            createdAt: 1,
+          },
+        },
+        {
+          $sort: { createdAt: -1 },
+        },
+        {
+          $skip: skip,
+        },
+        {
+          $limit: limit,
+        },
+      ];
 
-      const [products, total] = await Promise.all([
-        productModel
-          .find(query)
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit),
-        productModel.countDocuments(query),
+      const countPipeline = [{ $match: match }, { $count: 'total' }];
+
+      const [products, countResult] = await Promise.all([
+        productModel.aggregate(pipeline),
+        productModel.aggregate(countPipeline),
       ]);
 
-      if (products.length === 0) {
+      const total = countResult[0]?.total || 0;
+
+      if (!products || products.length === 0) {
         return next(createHttpError(404, 'No products found'));
       }
-
-      // console.log('Fetched products:', products);
-      // console.log('Total number of products:', total);
 
       res.status(200).json({
         success: true,
