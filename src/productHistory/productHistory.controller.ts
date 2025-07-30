@@ -1,17 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { NextFunction, Request, Response } from 'express';
 import createHttpError from 'http-errors';
-
-import mongoose from 'mongoose';
+import mongoose, { AnyBulkWriteOperation, ClientSession } from 'mongoose';
 import xlsx from 'xlsx';
-
 import productModel from '../product/product.model.js';
 import storeModel from '../store/store.model.js';
 import { StoreAccessRequest } from '../types/store-access';
-import { checkStoreAccess } from '../utils/store-access.js';
-
 import { ProductHistoryRow } from '../types/types.js';
-import productHistoryModel from './productHistory.model.js';
+import { checkStoreAccess } from '../utils/store-access.js';
+import productHistoryModel, { UploadError } from './productHistory.model.js';
+import { TransactionOptions } from 'mongodb';
 
 export const createProductHistory = async (
   req: Request,
@@ -182,13 +180,8 @@ export const getAllProductHistory = async (
       req.query.sku || req.query.productName || req.query.search || ''
     ).trim();
 
-    const storeIDParam = req.query.storeID as string | undefined;
-    let storeIDs: mongoose.Types.ObjectId[] | undefined = undefined;
-    if (storeIDParam) {
-      storeIDs = storeIDParam
-        .split(',')
-        .map((id) => new mongoose.Types.ObjectId(id.trim()));
-    }
+    const storeID = req.query.storeID as string | undefined;
+
     const pipeline: any[] = [
       {
         $lookup: {
@@ -211,17 +204,13 @@ export const getAllProductHistory = async (
     ];
 
     // Store filtering logic - similar to getOrders
-    if (storeIDs && storeIDs.length > 0) {
+    if (storeID) {
       // If specific store is requested, verify access
-      for (const id of storeIDs) {
-        if (!checkStoreAccess(user, id.toHexString())) {
-          return next(
-            createHttpError(403, `No access to store ${id.toHexString()}`)
-          );
-        }
+      if (!checkStoreAccess(user, storeID)) {
+        return next(createHttpError(403, 'No access to this store'));
       }
       pipeline.push({
-        $match: { storeID: { $in: storeIDs } },
+        $match: { storeID: new mongoose.Types.ObjectId(storeID) },
       });
     } else {
       // If no store specified, filter by user's allowed stores
@@ -500,6 +489,8 @@ export const getProductHistoryList = async (
     next(error);
   }
 };
+
+
 
 export const bulkUploadProductHistory = async (
   req: Request,
