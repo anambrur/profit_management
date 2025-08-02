@@ -23,15 +23,19 @@ const productHistorySchema = new mongoose.Schema(
       ref: 'Store',
       required: true,
     },
+    date: {
+      type: Date,
+      default: Date.now,
+      index: true,
+    },
     orderId: {
       type: String,
       trim: true,
     },
-    purchaseQuantity: {
-      type: Number,
-      default: 0,
+    upc: {
+      type: String,
     },
-    receiveQuantity: {
+    purchaseQuantity: {
       type: Number,
       default: 0,
     },
@@ -46,9 +50,7 @@ const productHistorySchema = new mongoose.Schema(
     status: {
       type: String,
     },
-    upc: {
-      type: String,
-    },
+
     costOfPrice: {
       type: Number,
       default: 0,
@@ -56,11 +58,6 @@ const productHistorySchema = new mongoose.Schema(
     sellPrice: {
       type: Number,
       default: 0,
-    },
-    date: {
-      type: Date,
-      default: Date.now,
-      index: true,
     },
     email: {
       type: String,
@@ -73,10 +70,6 @@ const productHistorySchema = new mongoose.Schema(
       lowercase: true,
     },
     supplier: supplierSchema,
-    totalPrice: {
-      type: String,
-      default: 0,
-    },
   },
   {
     timestamps: true,

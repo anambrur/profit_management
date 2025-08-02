@@ -522,22 +522,19 @@ export const bulkUploadProductHistory = async (
 
     data = xlsx.utils.sheet_to_json<ProductHistoryRow>(worksheet, {
       header: [
-        'date',
-        'picture',
-        'orderId',
-        'link',
-        'purchase',
-        'received',
-        'lostDamaged',
-        'sentToWfs',
-        'remaining',
-        'costPerItem',
-        'totalCost',
-        'sentToWfsCost',
-        'remainingCost',
-        'status',
-        'upc',
-        'wfsStatus',
+        'date', // A
+        'orderId', // B
+        'upc', // C
+        'purchase', // D (Purchased)
+        'received', // E (Received) - add this if you need it
+        'lost', // F (Lost/Damaged)
+        'sentToWfs', // G (Sent to wfs)
+        '', // H (Remaining) - skip
+        'costPerItem', // I (Cost per item)
+        '', // J (Total cost) - skip
+        '', // K (Sent to wfs cost) - skip
+        '', // L (Remaining) - skip
+        'status', // M (Status)
       ],
       range: 2,
       defval: null,
@@ -547,6 +544,7 @@ export const bulkUploadProductHistory = async (
     return res.status(400).json({ message: 'Invalid file format' });
   }
 
+  // console.log('XL-DATA', data);
   // Pre-process data to find unique UPCs and orderIds
   const uniqueUpcs = new Set<string>();
   const orderIdSet = new Set<string>();
@@ -554,6 +552,7 @@ export const bulkUploadProductHistory = async (
 
   for (const row of data) {
     if (!row.upc && !row.orderId) continue;
+
 
     const upc = String(row.upc || '').trim();
     if (!upc || upc === 'UPC') continue;
@@ -566,13 +565,21 @@ export const bulkUploadProductHistory = async (
     validRows.push(row);
   }
 
+  console.log('Uniq', uniqueUpcs.size);
+  const { storeId } = (await storeModel
+    .findById(req.body.storeID)
+    .select('-_id storeId')
+    .lean()) as { storeId: string };
+
   // Get all products in a single query before transaction
   const products = await productModel.find({
+    storeId,
     $or: [
       { sku: { $in: Array.from(uniqueUpcs) } },
       { upc: { $in: Array.from(uniqueUpcs) } },
     ],
   });
+  console.log('PRODUCTS', products.length);
 
   const productMap = new Map<string, any>();
   products.forEach((p) => {
@@ -635,7 +642,7 @@ export const bulkUploadProductHistory = async (
 
         const purchaseQuantity = parseNumber(row.purchase);
         const receiveQuantity = parseNumber(row.received);
-        const lostQuantity = parseNumber(row.lostDamaged);
+        const lostQuantity = parseNumber(row.lost);
         const sendToWFS = parseNumber(row.sentToWfs);
         const orderId = String(row.orderId || '').trim();
         const productId = product._id.toString();
@@ -714,7 +721,6 @@ export const bulkUploadProductHistory = async (
             sendToWFS,
             costOfPrice: parseNumber(row.costPerItem),
             sellPrice: sellPriceMap.get(upc) || 0,
-            totalPrice: String(row.totalCost || '0'),
             date: row.date ? new Date(row.date) : new Date(),
             status: String(row.status || ''),
             upc,
@@ -732,51 +738,51 @@ export const bulkUploadProductHistory = async (
     }
 
     // Execute all operations in parallel with smaller batches
-    const BATCH_SIZE = 500;
-    const updateBatches = [];
-    const insertBatches = [];
+    // const BATCH_SIZE = 500;
+    // const updateBatches = [];
+    // const insertBatches = [];
 
-    for (let i = 0; i < bulkUpdates.length; i += BATCH_SIZE) {
-      updateBatches.push(bulkUpdates.slice(i, i + BATCH_SIZE));
-    }
+    // for (let i = 0; i < bulkUpdates.length; i += BATCH_SIZE) {
+    //   updateBatches.push(bulkUpdates.slice(i, i + BATCH_SIZE));
+    // }
 
-    for (let i = 0; i < bulkInserts.length; i += BATCH_SIZE) {
-      insertBatches.push(bulkInserts.slice(i, i + BATCH_SIZE));
-    }
+    // for (let i = 0; i < bulkInserts.length; i += BATCH_SIZE) {
+    //   insertBatches.push(bulkInserts.slice(i, i + BATCH_SIZE));
+    // }
 
-    const updatePromises = updateBatches.map((batch) =>
-      productHistoryModel.bulkWrite(batch, { session })
-    );
-    const insertPromises = insertBatches.map((batch) =>
-      productHistoryModel.insertMany(batch, { session })
-    );
+    // const updatePromises = updateBatches.map((batch) =>
+    //   productHistoryModel.bulkWrite(batch, { session })
+    // );
+    // const insertPromises = insertBatches.map((batch) =>
+    //   productHistoryModel.insertMany(batch, { session })
+    // );
 
-    const [updateResults, insertResults] = await Promise.all([
-      updatePromises.length > 0 ? Promise.all(updatePromises) : null,
-      insertPromises.length > 0 ? Promise.all(insertPromises) : null,
-    ]);
+    // const [updateResults, insertResults] = await Promise.all([
+    //   updatePromises.length > 0 ? Promise.all(updatePromises) : null,
+    //   insertPromises.length > 0 ? Promise.all(insertPromises) : null,
+    // ]);
 
-    // Update available quantities in batches
-    if (availableUpdates.size > 0) {
-      const updates = Array.from(availableUpdates.entries());
-      for (let i = 0; i < updates.length; i += BATCH_SIZE) {
-        const batch = updates.slice(i, i + BATCH_SIZE);
-        await productModel.bulkWrite(
-          batch.map(([productId, change]) => ({
-            updateOne: {
-              filter: { _id: new mongoose.Types.ObjectId(productId) },
-              update: {
-                $inc: { available: change },
-                $set: { lastInventoryUpdate: new Date() },
-              },
-            },
-          })),
-          { session }
-        );
-      }
-    }
+    // // Update available quantities in batches
+    // if (availableUpdates.size > 0) {
+    //   const updates = Array.from(availableUpdates.entries());
+    //   for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+    //     const batch = updates.slice(i, i + BATCH_SIZE);
+    //     await productModel.bulkWrite(
+    //       batch.map(([productId, change]) => ({
+    //         updateOne: {
+    //           filter: { _id: new mongoose.Types.ObjectId(productId) },
+    //           update: {
+    //             $inc: { available: change },
+    //             $set: { lastInventoryUpdate: new Date() },
+    //           },
+    //         },
+    //       })),
+    //       { session }
+    //     );
+    //   }
+    // }
 
-    await session.commitTransaction();
+    // await session.commitTransaction();
 
     res.status(200).json({
       success: true,
