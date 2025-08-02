@@ -42,12 +42,6 @@ if (envConfig.nodeEnv !== 'development') {
   app.use(cookieParser());
   app.use(compression());
   app.use(ExpressMongoSanitize());
-  app.use(
-    rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: 100,
-    })
-  );
 } else {
   app.use(
     cors({
@@ -55,6 +49,7 @@ if (envConfig.nodeEnv !== 'development') {
       credentials: true,
     })
   );
+
   // app.use(morgan('dev'));
   app.use(morgan('dev', { skip: shouldSkipLogging }));
   app.use(express.json());
