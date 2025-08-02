@@ -15,7 +15,7 @@ const startServer = async () => {
   });
   // seed();
   initNotificationService(server);
-  ProductCornJob();
+  // ProductCornJob();
   OrderCornJob();
   // queuseOrdersCornJob();
 };
