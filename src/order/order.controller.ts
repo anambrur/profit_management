@@ -63,9 +63,9 @@ export const processStoreOrders = expressAsyncHandler(
       }
 
       const { stockedAlerts, failedOrders, skippedOrders, createdOrders } =
-        await transformOrdersData(result.orders);
+        await transformOrdersData(result.orders, store.storeId, store._id);
 
-      console.log(`Order processing completed for store ${storeId}`);
+      // console.log(`Order processing completed for store ${storeId}`);
 
       res.status(200).json({
         message: 'Order processing completed',
