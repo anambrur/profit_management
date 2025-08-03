@@ -16,6 +16,7 @@ import profitRouter from './profit_analyzer/profit.route.js';
 import roleRouter from './role/role.routes.js';
 import storeRouter from './store/store.route.js';
 import userRouter from './user/user.routes.js';
+import errorRouter from './error_handaler/error.route.js';
 
 const app: Application = express();
 
@@ -65,6 +66,7 @@ app.use('/api/orders', orderRouter);
 app.use('/api/product-history', productHistoryRouter);
 app.use('/api/roles', roleRouter);
 app.use('/api/permissions', permissionRouter);
+app.use('/api/error', errorRouter);
 
 // Global Error Handler
 app.use(globalError);
