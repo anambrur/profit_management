@@ -8,138 +8,8 @@ import storeModel from '../store/store.model.js';
 const apiUrl = process.env.API_BASE_URL;
 
 // Revised cron job to process all stores
-// const OrderCornJob = () => {
-//   cron.schedule('*/5 * * * *', async () => {
-//     try {
-//       sendNotification(
-//         'info',
-//         'Order cron job started - Processing all stores'
-//       );
-
-//       // Get all active stores
-//       const stores = await storeModel.find({ storeStatus: 'active' });
-
-//       if (stores.length === 0) {
-//         sendNotification('info', 'No active stores found to process');
-//         return;
-//       }
-
-//       // Process each store sequentially
-//       for (const store of stores) {
-//         let pageCount = 0;
-//         let hasMorePages = true;
-//         let nextCursors: Record<string, string | null> = {};
-//         let maxPages = 100; // Default safety limit
-
-//         try {
-//           while (hasMorePages && pageCount < maxPages) {
-//             pageCount++;
-//             const startTime = Date.now();
-
-//             // Prepare query params with encoded cursors
-//             const params: any = {};
-//             Object.entries(nextCursors).forEach(([shipNodeType, cursor]) => {
-//               if (cursor) {
-//                 params[`${shipNodeType}_cursor`] = cursor;
-//               }
-//             });
-
-//             sendNotification(
-//               'info',
-//               `Processing page ${pageCount} for store ${store.storeId}`
-//             );
-
-//             const response = await axios.get(
-//               `${apiUrl}/api/orders/process-store-orders/${store.storeId}`,
-//               {
-//                 params,
-//                 timeout: 120000,
-//               }
-//             );
-
-//             // Calculate maxPages dynamically from the first response
-//             if (pageCount === 1 && response.data.meta) {
-//               // Find the shipNodeType with highest totalCount
-//               const highestCountMeta = response.data.meta.reduce(
-//                 (prev: any, current: any) =>
-//                   prev.totalCount > current.totalCount ? prev : current
-//               );
-
-//               if (
-//                 highestCountMeta.totalCount > 0 &&
-//                 highestCountMeta.limit > 0
-//               ) {
-//                 // Calculate pages needed: ceil(totalCount / limit) + buffer
-//                 maxPages =
-//                   Math.ceil(
-//                     highestCountMeta.totalCount / highestCountMeta.limit
-//                   ) + 2;
-//                 console.log(
-//                   `Dynamic maxPages set to ${maxPages} based on totalCount ${highestCountMeta.totalCount} and limit ${highestCountMeta.limit}`
-//                 );
-//               }
-//             }
-
-//             const processingTime = Math.round((Date.now() - startTime) / 1000);
-
-//             sendNotification(
-//               'success',
-//               `Completed page ${pageCount} for store ${store.storeId}\n` +
-//                 `Status: ${response.data.message}\n` +
-//                 `Orders: ${response.data.status?.created || 0} created, ` +
-//                 `${response.data.status?.skipped || 0} skipped, ` +
-//                 `${response.data.status?.failed || 0} failed\n` +
-//                 `Time: ${processingTime} seconds`
-//             );
-
-//             // Update next cursors for next iteration
-//             hasMorePages = false;
-//             response.data.meta.forEach((meta: any) => {
-//               if (meta.nextCursor) {
-//                 nextCursors[meta.shipNodeType] = meta.nextCursor;
-//                 hasMorePages = true;
-//               } else {
-//                 nextCursors[meta.shipNodeType] = null;
-//               }
-//             });
-
-//             // Add delay between pages if needed
-//             if (hasMorePages) {
-//               await new Promise((resolve) => setTimeout(resolve, 5000));
-//             }
-//           }
-
-//           sendNotification(
-//             'success',
-//             `Completed all pages for store ${store.storeId} (processed ${pageCount} pages)`
-//           );
-//         } catch (error) {
-//           const errorMessage =
-//             error instanceof Error ? error.message : 'Unknown error';
-//           sendNotification(
-//             'error',
-//             `Failed processing store ${store.storeId}: ${errorMessage}`
-//           );
-//           continue;
-//         }
-
-//         // Add delay between stores if needed
-//         if (stores.length > 1) {
-//           await new Promise((resolve) => setTimeout(resolve, 5000));
-//         }
-//       }
-
-//       sendNotification('success', 'Completed order processing for all stores');
-//     } catch (error) {
-//       const errorMessage =
-//         error instanceof Error ? error.message : 'Unknown error';
-//       sendNotification('error', `Order cron job failed: ${errorMessage}`);
-//     }
-//   });
-// };
-
 const OrderCornJob = () => {
-  cron.schedule('*/45 * * * *', async () => {
+  cron.schedule('*/10 * * * *', async () => {
     try {
       const jobStartTime = new Date();
       sendNotification(
@@ -376,7 +246,7 @@ const OrderCornJob = () => {
 };
 
 const ProductCornJob = () => {
-  cron.schedule('*/53 * * * *', async () => {
+  cron.schedule('*/6 * * * *', async () => {
     try {
       // Start notification with timestamp
       const startTime = new Date();
