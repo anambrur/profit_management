@@ -9,7 +9,7 @@ const apiUrl = process.env.API_BASE_URL;
 
 // Revised cron job to process all stores
 const OrderCornJob = () => {
-  cron.schedule('*/20 * * * *', async () => {
+  cron.schedule('*/45 * * * *', async () => {
     try {
       const jobStartTime = new Date();
       sendNotification(
