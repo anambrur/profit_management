@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import expressAsyncHandler from 'express-async-handler';
 import { checkStoreAccess } from '../utils/store-access';
-import { NextFunction } from 'express';
+import { NextFunction, Response } from 'express';
 import createHttpError from 'http-errors';
 import storeModel from '../store/store.model';
 import stockAlertModel from './stockAlert.model';
