@@ -24,6 +24,8 @@ const seed = async () => {
       'product-history',
       'profit-analyzer',
       'store',
+      'stock-alert-order',
+      'failed-order',
     ];
 
     const actions = ['create', 'view', 'edit', 'delete'];

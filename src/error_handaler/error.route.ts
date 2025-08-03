@@ -2,16 +2,24 @@ import { Router } from 'express';
 import authenticateUser from '../middlewares/authenticateUser.js';
 
 import { hasPermission } from '../middlewares/checkPermission.js';
-import { getAllStockAlerts } from './error.controller.js';
+import { getAllFailOrders, getAllStockAlerts } from './error.controller.js';
 
 const errorRouter = Router();
 
-//forntend route
+//stock alerts
 errorRouter.get(
   '/get-all-stock-alerts',
   authenticateUser,
-  hasPermission('order:view'),
+  hasPermission('stock-alert-order:view'),
   getAllStockAlerts
+);
+
+//fail orders
+errorRouter.get(
+  '/get-all-fail-orders',
+  authenticateUser,
+  hasPermission('failed-order:view'),
+  getAllFailOrders
 );
 
 export default errorRouter;
