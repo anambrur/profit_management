@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import expressAsyncHandler from 'express-async-handler';
-import { checkStoreAccess } from '../utils/store-access';
 import { NextFunction, Response } from 'express';
 import createHttpError from 'http-errors';
-import storeModel from '../store/store.model';
-import stockAlertModel from './stockAlert.model';
-import { StoreAccessRequest } from '../types/store-access';
+import storeModel from '../store/store.model.js';
+import stockAlertModel from './stockAlert.model.js';
+import { StoreAccessRequest } from '../types/store-access.js';
+import { checkStoreAccess } from '../utils/store-access.js';
 
 export const getAllStockAlerts = expressAsyncHandler(
   async (req: StoreAccessRequest, res: Response, next: NextFunction) => {
