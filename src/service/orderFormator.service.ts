@@ -3,8 +3,8 @@ import { Types } from 'mongoose';
 import orderModel from '../order/order.model.js';
 import productModel from '../product/product.model.js';
 import productHistoryModel from '../productHistory/productHistory.model.js';
-import stockAlertModel from '../order/stockAlert.model.js';
-import failedOrderModel from '../order/failedOrder.model.js';
+import stockAlertModel from '../error_handaler/stockAlert.model.js';
+import failedOrderModel from '../error_handaler/failedOrder.model.js';
 
 async function transformOrdersData(
   orders: any[],
