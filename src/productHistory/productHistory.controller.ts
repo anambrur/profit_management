@@ -676,28 +676,28 @@ export const bulkUploadProductHistory = async (
         const productId = product._id.toString();
 
         // Check for existing record
-        // const existingItem = await productHistoryModel
-        //   .findOne({
-        //     productId: product._id,
-        //     storeID: req.body.storeID,
-        //     orderId,
-        //   })
-        //   .session(session);
+        const existingItem = await productHistoryModel
+          .findOne({
+            productId: product._id,
+            storeID: req.body.storeID,
+            orderId,
+          })
+          .session(session);
 
-        // if (existingItem) {
-        //   failedUploads.push({
-        //     storeID: req.body.storeID,
-        //     uploadDate: new Date(),
-        //     fileName: req.file.originalname,
-        //     rowData: row,
-        //     upc,
-        //     orderId,
-        //     reason: 'SKIPPED',
-        //     errorDetails: 'Duplicate record with same product and order ID',
-        //     processed: false,
-        //   });
-        //   continue;
-        // }
+        if (existingItem) {
+          // failedUploads.push({
+          //   storeID: req.body.storeID,
+          //   uploadDate: new Date(),
+          //   fileName: req.file.originalname,
+          //   rowData: row,
+          //   upc,
+          //   orderId,
+          //   reason: 'SKIPPED',
+          //   errorDetails: 'Duplicate record with same product and order ID',
+          //   processed: false,
+          // });
+          continue;
+        }
 
         // Update quantity tracking
         if (!productQuantityChanges.has(productId)) {
