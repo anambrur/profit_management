@@ -246,7 +246,7 @@ const OrderCornJob = () => {
 };
 
 const ProductCornJob = () => {
-  cron.schedule('*/59 * * * *', async () => {
+  cron.schedule('*/5 * * * *', async () => {
     try {
       // Start notification with timestamp
       const startTime = new Date();
