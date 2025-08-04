@@ -22,18 +22,21 @@ export const getProfit = async (
         : undefined;
 
     // Parallel fetching of fixed period data
-    const [today, yesterday, thisMonth, lastMonth] = await Promise.all([
-      getPeriodData('today', now, storeIdArray),
-      getPeriodData('yesterday', now, storeIdArray),
-      getPeriodData('thisMonth', now, storeIdArray),
-      getPeriodData('lastMonth', now, storeIdArray),
-    ]);
+    const [today, yesterday, thisMonth, lastMonth, last6Months] =
+      await Promise.all([
+        getPeriodData('today', now, storeIdArray),
+        getPeriodData('yesterday', now, storeIdArray),
+        getPeriodData('thisMonth', now, storeIdArray),
+        getPeriodData('lastMonth', now, storeIdArray),
+        getPeriodData('last6Months', now, storeIdArray),
+      ]);
 
     const responseData: any = {
       today,
       yesterday,
       thisMonth,
       lastMonth,
+      last6Months,
     };
 
     // Handle custom date range
@@ -105,6 +108,18 @@ async function getPeriodData(period: string, now: Date, storeIds?: string[]) {
     case 'lastMonth':
       startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      break;
+    case 'last6Months':
+      startDate = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+      endDate = new Date(
+        now.getFullYear(),
+        now.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999
+      );
       break;
     default:
       throw new Error('Invalid period');

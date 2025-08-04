@@ -1,8 +1,8 @@
-import connectDB from '../db/dbConnection';
-import permissionModel from '../permission/permission.model';
-import roleModel from '../role/role.model';
-import storeModel from '../store/store.model';
-import userModel from '../user/user.model';
+import connectDB from '../db/dbConnection.js';
+import permissionModel from '../permission/permission.model.js';
+import roleModel from '../role/role.model.js';
+import storeModel from '../store/store.model.js';
+import userModel from '../user/user.model.js';
 
 const seed = async () => {
   try {
@@ -26,6 +26,7 @@ const seed = async () => {
       'store',
       'stock-alert-order',
       'failed-order',
+      'failed-upload-result',
     ];
 
     const actions = ['create', 'view', 'edit', 'delete'];
