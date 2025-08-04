@@ -2,7 +2,7 @@ import { Router } from 'express';
 import authenticateUser from '../middlewares/authenticateUser.js';
 
 import { hasPermission } from '../middlewares/checkPermission.js';
-import { getAllFailOrders, getAllStockAlerts } from './error.controller.js';
+import { failedUploadsResult, getAllFailOrders, getAllStockAlerts } from './error.controller.js';
 
 const errorRouter = Router();
 
@@ -20,6 +20,15 @@ errorRouter.get(
   authenticateUser,
   hasPermission('failed-order:view'),
   getAllFailOrders
+);
+
+
+//fail orders
+errorRouter.get(
+  '/get-all-fail-uploads-results',
+  authenticateUser,
+  hasPermission('failed-upload-result:view'),
+  failedUploadsResult
 );
 
 export default errorRouter;
