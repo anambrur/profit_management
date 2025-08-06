@@ -254,7 +254,7 @@ export const getAllProductHistory = async (
           totalCost: 1,
           totalWFSCost: 1,
           remainingQuantity: {
-            $subtract: ['$totalReceive', '$totalSendToWFS'],
+            $subtract: ['$totalPurchase', '$totalSendToWFS'],
           },
           remainingCost: { $subtract: ['$totalCost', '$totalWFSCost'] },
         },
