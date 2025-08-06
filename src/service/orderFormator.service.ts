@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Types } from 'mongoose';
 import orderModel from '../order/order.model.js';
-import productModel from '../product/product.model.js';
 import productHistoryModel from '../productHistory/productHistory.model.js';
 import stockAlertModel from '../error_handaler/stockAlert.model.js';
 import failedOrderModel from '../error_handaler/failedOrder.model.js';
@@ -16,10 +15,11 @@ async function transformOrdersData(
     stockAlertModel.deleteMany({ storeId }),
     failedOrderModel.deleteMany({ storeId }),
   ]);
+
   // Initialize result arrays
-  const stockedAlerts: any[] = [];
-  const failedOrders: any[] = [];
-  const skippedOrders: any[] = [];
+  const stockedAlerts: any[] = []; // For inventory-related issues
+  const failedOrders: any[] = []; // For processing errors
+  const skippedOrders: any[] = []; // For duplicate orders
   const ordersToCreate: any[] = [];
 
   // Phase 1: Pre-fetch all necessary data
@@ -35,7 +35,7 @@ async function transformOrdersData(
   });
 
   // Parallel fetch operations
-  const [existingOrders, products] = await Promise.all([
+  const [existingOrders, productHistories] = await Promise.all([
     // Check for existing orders
     orderModel
       .find({
@@ -44,13 +44,10 @@ async function transformOrdersData(
       .select('customerOrderId')
       .lean(),
 
-    // Get all products needed
-    productModel.find({
-      storeId,
-      $or: [
-        { sku: { $in: Array.from(allSkus) } },
-        { upc: { $in: Array.from(allSkus) } },
-      ],
+    // Get all product histories needed
+    productHistoryModel.find({
+      storeID: storeObjectId,
+      upc: { $in: Array.from(allSkus) },
     }),
   ]);
 
@@ -58,12 +55,17 @@ async function transformOrdersData(
   const existingOrderIds = new Set(
     existingOrders.map((o) => o.customerOrderId)
   );
-  const productsMap = new Map(products.map((p) => [p.sku, p]));
+  const productHistoriesMap = new Map<string, any[]>();
 
-  // Prepare bulk updates
-  const bulkUpdates = {
-    products: [] as any[],
-  };
+  // Group histories by UPC
+  productHistories.forEach((history) => {
+    if (history.upc) {
+      if (!productHistoriesMap.has(history.upc)) {
+        productHistoriesMap.set(history.upc, []);
+      }
+      productHistoriesMap.get(history.upc)?.push(history);
+    }
+  });
 
   // Process all orders in single loop
   for (const order of orders) {
@@ -72,13 +74,13 @@ async function transformOrdersData(
       if (existingOrderIds.has(order.customerOrderId)) {
         skippedOrders.push({
           orderId: order.customerOrderId,
-          reason: 'Duplicate customerOrderId',
+          reason: 'DUPLICATE_ORDER',
         });
         continue;
       }
 
       const productsInOrder = [];
-      let hasInsufficientStock = false;
+      let hasInvalidProduct = false;
 
       // Process each order line
       for (const line of order.orderLines?.orderLine || []) {
@@ -87,74 +89,80 @@ async function transformOrdersData(
           line.orderLineQuantity?.amount || '1',
           10
         );
-        const product = productsMap.get(sku);
 
-        if (!product) {
-          failedOrders.push({
-            orderId: order.customerOrderId,
-            sku,
-            reason: 'Product not found in inventory',
-          });
-          hasInsufficientStock = true;
-          break;
-        }
+        const histories = productHistoriesMap.get(sku);
 
-        // Get product histories
-        const productHistories = await productHistoryModel
-          .find({
-            storeID: storeObjectId,
-            productId: product._id,
-            purchaseQuantity: { $gt: 0 },
-          })
-          .sort({
-            costOfPrice: 1,
-            date: 1,
-          })
-          .lean();
-
-        let remainingQuantity = quantityNeeded;
-        let purchasePrice = 0;
-
-        // Allocate inventory
-        for (const history of productHistories) {
-          if (remainingQuantity <= 0) break;
-
-          const availableQuantity = parseInt(
-            String(history.purchaseQuantity),
-            10
-          );
-          const quantityToTake = Math.min(remainingQuantity, availableQuantity);
-
-          if (purchasePrice === 0) {
-            purchasePrice = parseFloat(history.costOfPrice.toString());
-          }
-
-          bulkUpdates.products.push({
-            updateOne: {
-              filter: { _id: product._id },
-              update: { $inc: { available: -quantityToTake } },
-            },
-          });
-
-          remainingQuantity -= quantityToTake;
-        }
-
-        if (remainingQuantity > 0) {
+        // Case 1: No history found at all
+        if (!histories || histories.length === 0) {
           stockedAlerts.push({
             orderId: order.customerOrderId,
             sku,
-            reason: `Insufficient inventory (Need ${quantityNeeded}, Available ${quantityNeeded - remainingQuantity})`,
+            reason: 'PRODUCT_NOT_IN_HISTORY',
+            details: 'No purchase history exists for this product',
           });
-          hasInsufficientStock = true;
+          hasInvalidProduct = true;
           break;
         }
+
+        // Case 2: All histories have costOfPrice = 0
+        const allZeroCost = histories.every((h) => h.costOfPrice === 0);
+        if (allZeroCost) {
+          stockedAlerts.push({
+            orderId: order.customerOrderId,
+            sku,
+            reason: 'ZERO_COST_PRODUCT',
+            details: 'All purchase histories have costOfPrice = 0',
+          });
+          hasInvalidProduct = true;
+          break;
+        }
+
+        // Case 3: All histories have purchaseQuantity = 0
+        const allZeroQuantity = histories.every(
+          (h) => h.purchaseQuantity === 0
+        );
+        if (allZeroQuantity) {
+          stockedAlerts.push({
+            orderId: order.customerOrderId,
+            sku,
+            reason: 'ZERO_QUANTITY_PRODUCT',
+            details: 'All purchase histories have purchaseQuantity = 0',
+          });
+          hasInvalidProduct = true;
+          break;
+        }
+
+        // Case 4: Find valid histories (cost > 0 AND quantity > 0)
+        const validHistories = histories.filter(
+          (h) => h.costOfPrice > 0 && h.purchaseQuantity > 0
+        );
+
+        if (validHistories.length === 0) {
+          stockedAlerts.push({
+            orderId: order.customerOrderId,
+            sku,
+            reason: 'NO_VALID_HISTORIES',
+            details:
+              'No histories with both costOfPrice > 0 AND purchaseQuantity > 0',
+          });
+          hasInvalidProduct = true;
+          break;
+        }
+
+        // Select history with lowest cost (then oldest date)
+        const bestHistory = validHistories.sort((a, b) => {
+          if (a.costOfPrice !== b.costOfPrice) {
+            return a.costOfPrice - b.costOfPrice;
+          }
+          return new Date(a.date).getTime() - new Date(b.date).getTime();
+        })[0];
 
         productsInOrder.push({
           quantity: quantityNeeded,
           productName: line.item?.productName || 'Unknown Product',
           imageUrl: line.item?.imageUrl || '',
           productSKU: sku,
-          PurchasePrice: purchasePrice.toFixed(2),
+          PurchasePrice: bestHistory.costOfPrice.toFixed(2),
           sellPrice:
             line.charges?.charge
               ?.find((c: any) => c.chargeType === 'PRODUCT')
@@ -170,7 +178,7 @@ async function transformOrdersData(
         });
       }
 
-      if (hasInsufficientStock) {
+      if (hasInvalidProduct) {
         continue;
       }
 
@@ -208,21 +216,10 @@ async function transformOrdersData(
     } catch (error) {
       failedOrders.push({
         orderId: order.customerOrderId,
-        reason: 'Processing error',
+        reason: 'PROCESSING_ERROR',
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       continue;
-    }
-  }
-
-  // Execute bulk operations
-  if (bulkUpdates.products.length > 0) {
-    try {
-      const bulkResult = await productModel.bulkWrite(bulkUpdates.products);
-      console.log(`Updated ${bulkResult.modifiedCount} products`);
-    } catch (error) {
-      console.error('Product bulk update failed:', error);
-      throw error;
     }
   }
 
@@ -245,24 +242,23 @@ async function transformOrdersData(
       orderId: alert.orderId,
       sku: alert.sku,
       reason: alert.reason,
-      quantityNeeded: parseInt(alert.reason.match(/Need (\d+)/)?.[1] || 1),
-      quantityAvailable: parseInt(
-        alert.reason.match(/Available (\d+)/)?.[1] || 0
-      ),
+      details: alert.details,
+      type: 'STOCK_ALERT', // Added type for easier filtering
     }));
     await stockAlertModel.insertMany(alertDocs);
+  }
 
-    if (failedOrders.length > 0) {
-      const failureDocs = failedOrders.map((failure) => ({
-        storeId,
-        storeObjectId,
-        orderId: failure.orderId,
-        reason: failure.reason,
-        error: failure.error,
-        sku: failure.sku || null,
-      }));
-      await failedOrderModel.insertMany(failureDocs);
-    }
+  if (failedOrders.length > 0) {
+    const failureDocs = failedOrders.map((failure) => ({
+      storeId,
+      storeObjectId,
+      orderId: failure.orderId,
+      reason: failure.reason,
+      error: failure.error,
+      sku: failure.sku || null,
+      type: 'PROCESSING_ERROR', // Added type for easier filtering
+    }));
+    await failedOrderModel.insertMany(failureDocs);
   }
 
   return {

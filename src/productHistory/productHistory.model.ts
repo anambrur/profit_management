@@ -13,11 +13,11 @@ const supplierSchema = new mongoose.Schema({
 
 const productHistorySchema = new mongoose.Schema(
   {
-    productId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Product',
-      required: true,
-    },
+    // productId: {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: 'Product',
+    //   required: true,
+    // },
     storeID: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Store',
@@ -35,7 +35,14 @@ const productHistorySchema = new mongoose.Schema(
     upc: {
       type: String,
     },
+    sku: {
+      type: String,
+    },
     purchaseQuantity: {
+      type: Number,
+      default: 0,
+    },
+    orderQuantity: {
       type: Number,
       default: 0,
     },
