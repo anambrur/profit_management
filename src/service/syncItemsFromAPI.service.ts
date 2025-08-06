@@ -51,7 +51,7 @@ const syncItemsFromAPI = async (
     // 2. Fetch paginated data from API
     const correlationId = uuid();
     const params: any = { limit: 200 };
-    
+
     if (cursor && cursor !== '*') {
       params.nextCursor = cursor;
     } else {
@@ -210,6 +210,7 @@ const syncItemsFromAPI = async (
         ...insertedProducts.map((product) => ({
           productId: product._id,
           storeID: storeObjectId,
+          sku: product.sku,
           orderId: '',
           sellPrice: product.price?.amount || 0,
           upc: product.upc || '',
@@ -218,8 +219,8 @@ const syncItemsFromAPI = async (
           timestamp: new Date(),
         })),
         ...updatedProducts.map((product) => ({
-          productId: existingSkuMap.get(product.sku ?? '')?._id,
           storeID: storeObjectId,
+          sku: product.sku,
           orderId: '',
           sellPrice: product.price?.amount || 0,
           upc: product.upc || '',

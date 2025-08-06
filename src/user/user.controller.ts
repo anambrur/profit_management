@@ -174,17 +174,20 @@ export const loginUser = expressAsyncHandler(
         { expiresIn: '1d', algorithm: 'HS256' }
       );
 
+      const domain =
+        process.env.NODE_ENV === 'production'
+          ? process.env.cookieDomain
+          : 'localhost';
+
       // Secure cookie settings
       res.cookie('token', token, {
         httpOnly: true,
         secure: true,
         sameSite: 'none',
         maxAge: 24 * 60 * 60 * 1000,
-        domain: process.env.cookieDomain,
+        domain: domain,
         path: '/',
       });
-
-      
 
       // Response data
       const userData = {

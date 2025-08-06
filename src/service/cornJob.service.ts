@@ -9,7 +9,7 @@ const apiUrl = process.env.API_BASE_URL;
 
 // Revised cron job to process all stores
 const OrderCornJob = () => {
-  cron.schedule('*/45 * * * *', async () => {
+  cron.schedule('*/30 * * * *', async () => {
     try {
       const jobStartTime = new Date();
       sendNotification(
@@ -246,7 +246,7 @@ const OrderCornJob = () => {
 };
 
 const ProductCornJob = () => {
-  cron.schedule('*/5 * * * *', async () => {
+  cron.schedule('*/25 * * * *', async () => {
     try {
       // Start notification with timestamp
       const startTime = new Date();
