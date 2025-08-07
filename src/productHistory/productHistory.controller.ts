@@ -24,7 +24,6 @@ export const createProductHistory = async (
     const {
       storeID,
       purchase = 0,
-      received = 0,
       lost = 0,
       sentToWfs = 0,
       costOfPrice = 0,
@@ -36,13 +35,6 @@ export const createProductHistory = async (
       card = '',
       supplier,
     } = req.body;
-
-    // Check if product exists
-    const product = await productModel.findById(id).session(session);
-    if (!product) {
-      await session.abortTransaction();
-      return next(createHttpError(404, 'Product not found'));
-    }
 
     // Handle supplier
     let supplierObject;
@@ -66,10 +58,8 @@ export const createProductHistory = async (
     const newProduct = await productHistoryModel.create(
       [
         {
-          productId: product._id,
           storeID,
           purchaseQuantity: purchase,
-          receiveQuantity: received,
           lostQuantity: lost,
           sendToWFS: sentToWfs,
           costOfPrice,
@@ -82,20 +72,6 @@ export const createProductHistory = async (
           supplier: supplierObject,
         },
       ],
-      { session }
-    );
-
-    // Update product inventory
-    await productModel.updateOne(
-      { _id: product._id },
-      {
-        $inc: {
-          available: received - lost,
-        },
-        $set: {
-          lastInventoryUpdate: new Date(),
-        },
-      },
       { session }
     );
 
@@ -317,7 +293,6 @@ export const updateSingleField = async (
 
     const inventoryFields = [
       'purchaseQuantity',
-      'receiveQuantity',
       'lostQuantity',
       'sendToWFS',
     ];
@@ -426,17 +401,6 @@ export const updateSingleField = async (
           };
           break;
       }
-
-      // if (Object.keys(updateProduct).length > 0) {
-      //   await productModel.findByIdAndUpdate(
-      //     currentHistory.productId,
-      //     {
-      //       ...updateProduct,
-      //       $set: { lastInventoryUpdate: new Date() },
-      //     },
-      //     { session }
-      //   );
-      // }
     }
 
     await session.commitTransaction();
@@ -477,333 +441,6 @@ export const getProductHistoryList = async (
   }
 };
 
-// Updated bulkUploadProductHistory function
-// export const bulkUploadProductHistory = async (
-//   req: Request,
-//   res: Response,
-//   next: NextFunction
-// ) => {
-//   if (!req.file) {
-//     return res.status(400).json({ message: 'No file uploaded' });
-//   }
-
-//   // Parse the file
-//   let data: ProductHistoryRow[];
-//   try {
-//     const workbook = xlsx.read(req.file.buffer, {
-//       type: 'buffer',
-//       cellDates: true,
-//     });
-
-//     const sheetName = workbook.SheetNames[0];
-//     const worksheet = workbook.Sheets[sheetName];
-
-//     data = xlsx.utils.sheet_to_json<ProductHistoryRow>(worksheet, {
-//       header: [
-//         'date', // A
-//         'orderId', // B
-//         'upc', // C
-//         'purchase', // D (Purchased)
-//         '', // E (Received) - skip
-//         'lost', // F (Lost/Damaged)
-//         'sentToWfs', // G (Sent to wfs)
-//         '', // H (Remaining) - skip
-//         'costPerItem', // I (Cost per item)
-//         '', // J (Total cost) - skip
-//         '', // K (Sent to wfs cost) - skip
-//         '', // L (Remaining) - skip
-//         'status', // M (Status)
-//       ],
-//       range: 2,
-//       defval: null,
-//       raw: false,
-//     });
-//   } catch (err) {
-//     return res.status(400).json({ message: 'Invalid file format' });
-//   }
-
-//   // Pre-process data
-//   const uniqueUpcs = new Set<string>();
-//   const orderIdSet = new Set<string>();
-//   const validRows: ProductHistoryRow[] = [];
-//   const skippedRows: Array<{ row: ProductHistoryRow; reason: string }> = [];
-
-//   for (const row of data) {
-//     if (!row.upc && !row.orderId) {
-//       skippedRows.push({ row, reason: 'Missing both UPC and Order ID' });
-//       continue;
-//     }
-
-//     const upc = String(row.upc || '').trim();
-//     if (!upc || upc === 'UPC') {
-//       skippedRows.push({ row, reason: 'Invalid or empty UPC' });
-//       continue;
-//     }
-
-//     const orderId = String(row.orderId || '').trim();
-//     if (orderId && orderIdSet.has(orderId)) {
-//       skippedRows.push({ row, reason: 'Duplicate Order ID' });
-//       continue;
-//     }
-
-//     orderIdSet.add(orderId);
-//     uniqueUpcs.add(upc);
-//     validRows.push(row);
-//   }
-
-//   if (validRows.length === 0) {
-//     return res.status(400).json({ message: 'No valid rows found' });
-//   }
-//   console.log('validRows', validRows.length);
-
-//   // Get store info
-//   const { storeId } = (await storeModel
-//     .findById(req.body.storeID)
-//     .select('-_id storeId')
-//     .lean()) as { storeId: string };
-
-//   // Get all products in a single query
-//   const products = await productModel.find({
-//     storeId,
-//     $or: [
-//       { sku: { $in: Array.from(uniqueUpcs) } },
-//       { upc: { $in: Array.from(uniqueUpcs) } },
-//     ],
-//   });
-
-//   // Create product maps
-//   const productMap = new Map<string, any>();
-//   const productIdMap = new Map<string, any>(); // Map by product ID
-//   products.forEach((p) => {
-//     productIdMap.set(p._id.toString(), p);
-//     if (p.sku) productMap.set(p.sku, p);
-//     if (p.upc) productMap.set(p.upc, p);
-//   });
-
-//   // Start transaction
-//   const session = await mongoose.startSession();
-//   session.startTransaction({
-//     maxCommitTimeMS: 300000, // 5 minutes
-//     readConcern: { level: 'local' },
-//     writeConcern: { w: 'majority', wtimeout: 50000 },
-//   });
-
-//   try {
-//     // Clear previous records for this store as part of the transaction
-//     await FailedProductUploadModel.deleteMany({
-//       storeID: req.body.storeID,
-//     }).session(session);
-
-//     const bulkUpdates = [];
-//     const bulkInserts = [];
-//     const skippedProducts = [];
-//     const errors = [];
-//     const failedUploads = [];
-
-//     // New approach for tracking available quantities
-//     const productQuantityChanges = new Map<
-//       string,
-//       {
-//         available: number;
-//         lastInventoryUpdate: Date;
-//       }
-//     >();
-
-//     // Process all valid rows
-//     for (const row of validRows) {
-//       try {
-//         const upc = String(row.upc || '').trim();
-//         const product = productMap.get(upc);
-
-//         const parseNumber = (value: any): number => {
-//           if (value === null || value === undefined || value === '') return 0;
-//           if (typeof value === 'string') {
-//             if (value.startsWith('=')) return 0;
-//             value = value.replace(/[^0-9.-]+/g, '');
-//           }
-//           const num = Number(value);
-//           return isNaN(num) ? 0 : num;
-//         };
-
-//         const purchaseQuantity = parseNumber(row.purchase);
-//         const lostQuantity = parseNumber(row.lost);
-//         const sendToWFS = parseNumber(row.sentToWfs);
-//         const orderId = String(row.orderId || '').trim();
-
-//         // Check for existing record
-//         const existingItem = await productHistoryModel
-//           .findOne({
-//             storeID: req.body.storeID,
-//             orderId,
-//           })
-//           .session(session);
-
-//         if (existingItem) {
-//           continue;
-//         }
-
-//         // Check for zero quantity item to update
-//         const zeroQuantityItem = await productHistoryModel
-//           .findOne({
-//             $or: [{ sku: row.upc }, { upc: row.upc }],
-//             storeID: req.body.storeID,
-//             purchaseQuantity: 0,
-//             orderId: '',
-//           })
-//           .session(session);
-
-//         if (zeroQuantityItem) {
-//           bulkUpdates.push({
-//             updateOne: {
-//               filter: { _id: zeroQuantityItem._id },
-//               update: {
-//                 $set: {
-//                   orderId,
-//                   purchaseQuantity,
-//                   lostQuantity,
-//                   sendToWFS,
-//                   costOfPrice: parseNumber(row.costPerItem),
-//                   sellPrice: zeroQuantityItem.sellPrice,
-//                   date: row.date ? new Date(row.date) : new Date(),
-//                   status: String(row.status || ''),
-//                   upc,
-//                   supplier: { name: '', link: String(row.link || '') },
-//                   email: '',
-//                   card: '',
-//                 },
-//               },
-//             },
-//           });
-//         } else {
-//           bulkInserts.push({
-//             storeID: req.body.storeID,
-//             orderId,
-//             purchaseQuantity,
-//             lostQuantity,
-//             sendToWFS,
-//             costOfPrice: parseNumber(row.costPerItem),
-//             sellPrice: product.price?.amount || 0,
-//             date: row.date ? new Date(row.date) : new Date(),
-//             status: String(row.status || ''),
-//             upc,
-//             supplier: { name: '', link: String(row.link || '') },
-//             email: '',
-//             card: '',
-//           });
-//         }
-//       } catch (error: any) {
-//         const upc = String(row.upc || '').trim();
-//         const orderId = String(row.orderId || '').trim();
-
-//         errors.push({
-//           row,
-//           error: error.message,
-//         });
-
-//         failedUploads.push({
-//           storeId: storeId,
-//           storeObjectId: req.body.storeID,
-//           uploadDate: new Date(),
-//           fileName: req.file.originalname,
-//           rowData: row,
-//           upc,
-//           orderId,
-//           reason: 'ERROR',
-//           errorDetails: error.message,
-//           processed: false,
-//         });
-//       }
-//     }
-
-//     // Add initial skipped rows to failed uploads
-//     for (const { row, reason } of skippedRows) {
-//       failedUploads.push({
-//         storeId: storeId,
-//         storeObjectId: req.body.storeID,
-//         uploadDate: new Date(),
-//         fileName: req.file.originalname,
-//         rowData: row,
-//         upc: String(row.upc || '').trim(),
-//         orderId: String(row.orderId || '').trim(),
-//         reason: 'SKIPPED',
-//         errorDetails: reason,
-//         processed: false,
-//       });
-//     }
-
-//     console.log('bulkUpdates', bulkUpdates.length);
-//     console.log('bulkInserts', bulkInserts.length);
-
-//     // Process updates, inserts, and failed uploads in parallel
-//     // const [updateResults, insertResults, failedUploadsResult] =
-//     //   await Promise.all([
-//     //     bulkUpdates.length > 0
-//     //       ? productHistoryModel.bulkWrite(bulkUpdates, {
-//     //           session,
-//     //           ordered: false,
-//     //         })
-//     //       : Promise.resolve(null),
-//     //     bulkInserts.length > 0
-//     //       ? productHistoryModel.insertMany(bulkInserts, { session })
-//     //       : Promise.resolve(null),
-//     //     failedUploads.length > 0
-//     //       ? FailedProductUploadModel.insertMany(failedUploads, { session })
-//     //       : Promise.resolve(null),
-//     //   ]);
-
-//     // // Update product quantities in a single bulk operation
-//     // if (productQuantityChanges.size > 0) {
-//     //   const productUpdates = Array.from(productQuantityChanges.entries()).map(
-//     //     ([productId, { available, lastInventoryUpdate }]) => ({
-//     //       updateOne: {
-//     //         filter: { _id: new mongoose.Types.ObjectId(productId) },
-//     //         update: {
-//     //           $set: {
-//     //             available,
-//     //             lastInventoryUpdate,
-//     //           },
-//     //         },
-//     //       },
-//     //     })
-//     //   );
-
-//     //   await productModel.bulkWrite(productUpdates, { session });
-//     // }
-
-//     // await session.commitTransaction();
-
-//     res.status(200).json({
-//       success: true,
-//       stats: {
-//         totalRows: data.length,
-//         validRows: validRows.length,
-//         updated: bulkUpdates.length,
-//         inserted: bulkInserts.length,
-//         skippedProductsLength: skippedProducts.length + skippedRows.length,
-//         skippedProducts: [...skippedProducts, ...skippedRows],
-//         productsUpdated: productQuantityChanges.size,
-//         errors: errors.length,
-//         failedUploadsSaved: failedUploads.length,
-//       },
-//       sampleErrors: errors.slice(0, 5),
-//     });
-//   } catch (err: any) {
-//     await session.abortTransaction();
-//     console.error('Bulk upload failed:', {
-//       message: err.message,
-//       stack: err.stack,
-//       code: err.code,
-//       name: err.name,
-//     });
-//     res.status(500).json({
-//       success: false,
-//       message: 'Bulk upload failed',
-//       error: err.message,
-//     });
-//   } finally {
-//     session.endSession();
-//   }
-// };
 
 export const bulkUploadProductHistory = async (
   req: Request,

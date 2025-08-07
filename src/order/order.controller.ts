@@ -161,7 +161,23 @@ export const getOrders = expressAsyncHandler(
 
       const [total, orders] = await Promise.all([
         orderModel.countDocuments(filter),
-        orderModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+        orderModel.aggregate([
+          { $match: filter },
+          {
+            $lookup: {
+              from: 'stores',
+              localField: 'storeId',
+              foreignField: 'storeId',
+              as: 'storeInfo',
+            },
+          },
+          { $unwind: { path: '$storeInfo', preserveNullAndEmptyArrays: true } },
+          { $addFields: { storeName: '$storeInfo.storeName' } },
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          { $project: { storeInfo: 0 } },
+        ]),
       ]);
 
       res.status(200).json({
