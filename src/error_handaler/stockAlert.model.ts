@@ -6,6 +6,7 @@ const stockAlertSchema = new mongoose.Schema({
   orderId: String,
   sku: String,
   reason: String,
+  details: String,
   quantityNeeded: Number,
   quantityAvailable: Number,
   date: { type: Date, default: Date.now },
