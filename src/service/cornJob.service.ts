@@ -9,7 +9,7 @@ const apiUrl = process.env.API_BASE_URL;
 
 // Revised cron job to process all stores
 const OrderCornJob = () => {
-  cron.schedule('*/15 * * * *', async () => {
+  cron.schedule('*/56 * * * *', async () => {
     try {
       const jobStartTime = new Date();
       sendNotification(
@@ -49,7 +49,7 @@ const OrderCornJob = () => {
             let pageCount = 0;
             let hasMorePages = true;
             let nextCursors: Record<string, string | null> = {};
-            let maxPages = 100; // Default safety limit
+            let maxPages = 300; // Default safety limit
             let storeTotalCreated = 0;
             let storeTotalSkipped = 0;
             let storeTotalFailed = 0;
@@ -252,7 +252,7 @@ const OrderCornJob = () => {
 };
 
 const ProductCornJob = () => {
-  cron.schedule('*/55 * * * *', async () => {
+  cron.schedule('*/15 * * * *', async () => {
     try {
       // Start notification with timestamp
       const startTime = new Date();
@@ -289,7 +289,7 @@ const ProductCornJob = () => {
         while (retryCount < maxRetries && !storeSuccess) {
           try {
             let pageCount = 0;
-            const maxPages = 50;
+            const maxPages = 200;
             let hasMore = true;
             let nextCursor: string | null = null;
             let storeTotalProcessed = 0;
