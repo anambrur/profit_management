@@ -9,7 +9,7 @@ const apiUrl = process.env.API_BASE_URL;
 
 // Revised cron job to process all stores
 const OrderCornJob = () => {
-  cron.schedule('*/30 * * * *', async () => {
+  cron.schedule('*/15 * * * *', async () => {
     try {
       const jobStartTime = new Date();
       sendNotification(
@@ -31,6 +31,7 @@ const OrderCornJob = () => {
       let grandTotalFailed = 0;
       let processedStores = 0;
       let failedStores = 0;
+      let grandTotalStockAlerts = 0;
 
       // Process each store sequentially
       for (const [index, store] of stores.entries()) {
@@ -52,6 +53,7 @@ const OrderCornJob = () => {
             let storeTotalCreated = 0;
             let storeTotalSkipped = 0;
             let storeTotalFailed = 0;
+            let storeTotalStockAlerts = 0;
 
             sendNotification(
               'info',
@@ -115,12 +117,14 @@ const OrderCornJob = () => {
               storeTotalCreated += status?.created || 0;
               storeTotalSkipped += status?.skipped || 0;
               storeTotalFailed += status?.failed || 0;
+              storeTotalStockAlerts += status?.stockAlerts || 0;
 
               console.log(
                 `Page ${pageCount} completed in ${processingTime}s - ` +
                   `Created: ${status?.created || 0} | ` +
                   `Skipped: ${status?.skipped || 0} | ` +
-                  `Failed: ${status?.failed || 0}`
+                  `Failed: ${status?.failed || 0} | ` +
+                  `StockAlerts: ${status?.stockAlerts || 0}`
               );
 
               sendNotification(
@@ -158,6 +162,7 @@ const OrderCornJob = () => {
             grandTotalCreated += storeTotalCreated;
             grandTotalSkipped += storeTotalSkipped;
             grandTotalFailed += storeTotalFailed;
+            grandTotalStockAlerts += storeTotalStockAlerts;
             processedStores++;
 
             const storeProcessingTime = Math.round(
@@ -166,7 +171,8 @@ const OrderCornJob = () => {
             console.log(
               `Store ${store.storeId} completed in ${storeProcessingTime}m - ` +
                 `Processed ${pageCount} pages | Created: ${storeTotalCreated} | ` +
-                `Skipped: ${storeTotalSkipped} | Failed: ${storeTotalFailed}`
+                `Skipped: ${storeTotalSkipped} | Failed: ${storeTotalFailed}` +
+                ` | StockAlerts: ${storeTotalStockAlerts}`
             );
 
             sendNotification(
@@ -222,7 +228,7 @@ const OrderCornJob = () => {
       console.log(
         `\nJob completed in ${totalTime}m\n` +
           `Stores: ${processedStores} succeeded, ${failedStores} failed\n` +
-          `Orders: Created ${grandTotalCreated} | Skipped ${grandTotalSkipped} | Failed ${grandTotalFailed}`
+          `Orders: Created ${grandTotalCreated} | Skipped ${grandTotalSkipped} | Failed ${grandTotalFailed} | StockAlerts ${grandTotalStockAlerts}`
       );
 
       sendNotification(
@@ -246,7 +252,7 @@ const OrderCornJob = () => {
 };
 
 const ProductCornJob = () => {
-  cron.schedule('*/25 * * * *', async () => {
+  cron.schedule('*/55 * * * *', async () => {
     try {
       // Start notification with timestamp
       const startTime = new Date();

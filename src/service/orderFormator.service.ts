@@ -99,6 +99,7 @@ async function transformOrdersData(
             sku,
             reason: 'PRODUCT_NOT_IN_HISTORY',
             details: 'No purchase history exists for this product',
+            quantityNeeded: quantityNeeded,
           });
           hasInvalidProduct = true;
           break;
@@ -112,6 +113,7 @@ async function transformOrdersData(
             sku,
             reason: 'ZERO_COST_PRODUCT',
             details: 'All purchase histories have costOfPrice = 0',
+            quantityNeeded: quantityNeeded,
           });
           hasInvalidProduct = true;
           break;
@@ -127,6 +129,7 @@ async function transformOrdersData(
             sku,
             reason: 'ZERO_QUANTITY_PRODUCT',
             details: 'All purchase histories have purchaseQuantity = 0',
+            quantityNeeded: quantityNeeded,
           });
           hasInvalidProduct = true;
           break;
@@ -144,6 +147,7 @@ async function transformOrdersData(
             reason: 'NO_VALID_HISTORIES',
             details:
               'No histories with both costOfPrice > 0 AND purchaseQuantity > 0',
+              quantityNeeded: quantityNeeded,
           });
           hasInvalidProduct = true;
           break;
@@ -243,6 +247,7 @@ async function transformOrdersData(
       sku: alert.sku,
       reason: alert.reason,
       details: alert.details,
+      quantityNeeded: alert.quantityNeeded,
       type: 'STOCK_ALERT', // Added type for easier filtering
     }));
     await stockAlertModel.insertMany(alertDocs);
