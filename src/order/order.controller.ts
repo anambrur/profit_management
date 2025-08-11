@@ -100,100 +100,7 @@ export const processStoreOrders = expressAsyncHandler(
   }
 );
 
-//  get all orders
-// export const getOrders = expressAsyncHandler(
-//   async (req: StoreAccessRequest, res: Response, next: NextFunction) => {
-//     try {
-//       const user = req.user!;
-//       const page = Math.max(Number(req.query.page) || 1, 1);
-//       const limit = Math.min(Number(req.query.limit) || 10, 100);
-//       const skip = (page - 1) * limit;
-
-//       const {
-//         search = '',
-//         storeId = '',
-//         status,
-//       } = req.query as {
-//         search?: string;
-//         storeId?: string;
-//         status?: string;
-//       };
-
-//       const filter: any = {};
-
-//       // 🔥 Handle multiple storeId(s)
-//       let storeIds: string[] = [];
-//       if (storeId) {
-//         storeIds = storeId.split(',').map((id) => id.trim());
-
-//         // 🔒 Check if user has access to all requested stores
-//         const unauthorized = storeIds.some((id) => !checkStoreAccess(user, id));
-//         if (unauthorized) {
-//           return next(createHttpError(403, 'No access to one or more stores'));
-//         }
-
-//         filter.storeId = { $in: storeIds };
-//       } else {
-//         // 🛡 Filter based on user allowed stores
-//         const allowedStores = await storeModel
-//           .find({ _id: { $in: user.allowedStores } })
-//           .select('storeId -_id');
-
-//         filter.storeId = {
-//           $in: allowedStores.map((store) => store.storeId),
-//         };
-//       }
-
-//       // 🎯 Optional status filter
-//       if (status) {
-//         filter.status = status;
-//       }
-
-//       // 🔍 Optional search filter
-//       if (search) {
-//         const regex = new RegExp(search, 'i');
-//         filter.$or = [
-//           { customerOrderId: regex },
-//           { 'products.productName': regex },
-//           { 'products.productSKU': regex },
-//         ];
-//       }
-
-//       const [total, orders] = await Promise.all([
-//         orderModel.countDocuments(filter),
-//         orderModel.aggregate([
-//           { $match: filter },
-//           {
-//             $lookup: {
-//               from: 'stores',
-//               localField: 'storeId',
-//               foreignField: 'storeId',
-//               as: 'storeInfo',
-//             },
-//           },
-//           { $unwind: { path: '$storeInfo', preserveNullAndEmptyArrays: true } },
-//           { $addFields: { storeName: '$storeInfo.storeName' } },
-//           { $sort: { orderDate: -1 } },
-//           { $skip: skip },
-//           { $limit: limit },
-//           { $project: { storeInfo: 0 } },
-//         ]),
-//       ]);
-
-//       res.status(200).json({
-//         success: true,
-//         orders,
-//         total,
-//         page,
-//         limit,
-//         pages: Math.ceil(total / limit),
-//       });
-//     } catch (error) {
-//       next(error);
-//     }
-//   }
-// );
-
+//api all store order facing
 export const getOrders = expressAsyncHandler(
   async (req: StoreAccessRequest, res: Response, next: NextFunction) => {
     try {
@@ -223,7 +130,6 @@ export const getOrders = expressAsyncHandler(
       if (storeId) {
         storeIds = storeId.split(',').map((id) => id.trim());
 
-        // Check if user has access to all requested stores
         const unauthorized = storeIds.some((id) => !checkStoreAccess(user, id));
         if (unauthorized) {
           return next(createHttpError(403, 'No access to one or more stores'));
@@ -231,7 +137,6 @@ export const getOrders = expressAsyncHandler(
 
         filter.storeId = { $in: storeIds };
       } else {
-        // Filter based on user allowed stores
         const allowedStores = await storeModel
           .find({ _id: { $in: user.allowedStores } })
           .select('storeId -_id');
@@ -241,12 +146,10 @@ export const getOrders = expressAsyncHandler(
         };
       }
 
-      // Optional status filter
       if (status) {
         filter.status = status;
       }
 
-      // Date range filter
       if (fromDate || toDate) {
         filter.orderDate = {};
         if (fromDate) {
@@ -257,7 +160,6 @@ export const getOrders = expressAsyncHandler(
         }
       }
 
-      // Optional search filter
       if (search) {
         const regex = new RegExp(search, 'i');
         filter.$or = [
@@ -267,10 +169,15 @@ export const getOrders = expressAsyncHandler(
         ];
       }
 
+      console.log('Final filter:', JSON.stringify(filter, null, 2)); // Debug log
+
       const [total, orders, sums] = await Promise.all([
         orderModel.countDocuments(filter),
         orderModel.aggregate([
           { $match: filter },
+          { $sort: { orderDate: -1 } }, // Move sort before skip/limit
+          { $skip: skip },
+          { $limit: limit },
           {
             $lookup: {
               from: 'stores',
@@ -281,9 +188,6 @@ export const getOrders = expressAsyncHandler(
           },
           { $unwind: { path: '$storeInfo', preserveNullAndEmptyArrays: true } },
           { $addFields: { storeName: '$storeInfo.storeName' } },
-          { $sort: { orderDate: -1 } },
-          { $skip: skip },
-          { $limit: limit },
           { $project: { storeInfo: 0 } },
         ]),
         orderModel.aggregate([
@@ -315,6 +219,10 @@ export const getOrders = expressAsyncHandler(
         ]),
       ]);
 
+      console.log(
+        `Found ${total} total orders, returning ${orders.length} orders`
+      ); // Debug log
+
       const sumResult =
         sums.length > 0
           ? sums[0]
@@ -333,6 +241,7 @@ export const getOrders = expressAsyncHandler(
         sums: sumResult,
       });
     } catch (error) {
+      console.error('Error in getOrders:', error); // Debug log
       next(error);
     }
   }
