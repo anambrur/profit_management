@@ -227,7 +227,7 @@ export const getAllProductHistory = async (
           $group: {
             _id: null,
             totalPurchase: { $sum: '$purchaseQuantity' },
-            totalReceive: { $sum: '$receiveQuantity' },
+            totalOrder: { $sum: '$orderQuantity' },
             totalLost: { $sum: '$lostQuantity' },
             totalSendToWFS: { $sum: '$sendToWFS' },
             totalCost: {
@@ -242,7 +242,7 @@ export const getAllProductHistory = async (
           $project: {
             _id: 0,
             totalPurchase: 1,
-            totalReceive: 1,
+            totalOrder: 1,
             totalLost: 1,
             totalSendToWFS: 1,
             totalCost: 1,
@@ -250,7 +250,9 @@ export const getAllProductHistory = async (
             remainingQuantity: {
               $subtract: ['$totalPurchase', '$totalSendToWFS'],
             },
-            remainingCost: { $subtract: ['$totalCost', '$totalWFSCost'] },
+            remainingCost: {
+              $round: [{ $subtract: ['$totalCost', '$totalWFSCost'] }, 2],
+            },
           },
         },
       ]),
@@ -259,7 +261,7 @@ export const getAllProductHistory = async (
     const total = countResult[0]?.total || 0;
     const summary = summaryResult[0] || {
       totalPurchase: 0,
-      totalReceive: 0,
+      totalOrder: 0,
       totalLost: 0,
       totalSendToWFS: 0,
       totalCost: 0,

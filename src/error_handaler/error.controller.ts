@@ -10,7 +10,6 @@ import failedOrderModel from './failedOrder.model.js';
 import { FailedProductUploadModel } from './failedProductUpload.model.js';
 
 //stock alerts
-
 export const getAllStockAlerts = expressAsyncHandler(
   async (req: StoreAccessRequest, res: Response, next: NextFunction) => {
     try {
@@ -19,8 +18,12 @@ export const getAllStockAlerts = expressAsyncHandler(
       const limit = Math.min(Number(req.query.limit) || 10, 100);
       const skip = (page - 1) * limit;
 
-      const { storeId = '' } = req.query as {
+      const {
+        storeId = '',
+        search = '',
+      } = req.query as {
         storeId?: string;
+        search?: string;
       };
 
       const filter: any = {};
@@ -48,15 +51,38 @@ export const getAllStockAlerts = expressAsyncHandler(
         };
       }
 
+      // Add search filter
+      if (search) {
+        const searchRegex = new RegExp(search, 'i');
+        filter.$or = [{ sku: searchRegex }, { orderId: searchRegex }];
+      }
+
+      // Add reason filter
+      if (reason) {
+        filter.reason = reason;
+      }
+
       // Create aggregation pipeline
       const aggregationPipeline: any[] = [
         { $match: filter },
+        {
+          $lookup: {
+            from: 'stores',
+            localField: 'storeObjectId',
+            foreignField: '_id',
+            as: 'storeDetails',
+          },
+        },
+        { $unwind: '$storeDetails' },
         {
           $group: {
             _id: {
               storeId: '$storeId',
               storeObjectId: '$storeObjectId',
               sku: '$sku',
+              reason: '$reason',
+              details: '$details',
+              storeName: '$storeDetails.storeName', // Include storeName in grouping
             },
             totalQuantityNeeded: { $sum: '$quantityNeeded' },
             totalQuantityAvailable: { $sum: '$quantityAvailable' },
@@ -64,25 +90,19 @@ export const getAllStockAlerts = expressAsyncHandler(
             lastDate: { $last: '$date' },
             orderIds: { $push: '$orderId' },
             reasons: { $push: '$reason' },
+            detailsList: { $push: '$details' },
             count: { $sum: 1 },
           },
         },
-        {
-          $lookup: {
-            from: 'stores', // assuming your store collection is named "stores"
-            localField: '_id.storeObjectId',
-            foreignField: '_id',
-            as: 'storeDetails',
-          },
-        },
-        { $unwind: '$storeDetails' },
         {
           $project: {
             _id: 0,
             storeId: '$_id.storeId',
             storeObjectId: '$_id.storeObjectId',
             sku: '$_id.sku',
-            storeName: '$storeDetails.storeName',
+            reason: '$_id.reason',
+            details: '$_id.details',
+            storeName: '$_id.storeName', // Get storeName from the _id grouping
             totalQuantityNeeded: '$totalQuantityNeeded',
             totalQuantityAvailable: '$totalQuantityAvailable',
             firstDate: 1,
@@ -90,6 +110,7 @@ export const getAllStockAlerts = expressAsyncHandler(
             orderCount: '$count',
             orderIds: 1,
             reasons: 1,
+            detailsList: 1,
           },
         },
         { $sort: { lastDate: -1 } },
@@ -101,7 +122,15 @@ export const getAllStockAlerts = expressAsyncHandler(
       const [totalQuery, stockAlerts] = await Promise.all([
         stockAlertModel.aggregate([
           { $match: filter },
-          { $group: { _id: { storeId: '$storeId', sku: '$sku' } } },
+          {
+            $group: {
+              _id: {
+                storeId: '$storeId',
+                sku: '$sku',
+                reason: '$reason',
+              },
+            },
+          },
           { $count: 'total' },
         ]),
         stockAlertModel.aggregate(aggregationPipeline),
@@ -122,7 +151,6 @@ export const getAllStockAlerts = expressAsyncHandler(
     }
   }
 );
-
 
 //fail orders
 export const getAllFailOrders = expressAsyncHandler(
@@ -189,7 +217,6 @@ export const getAllFailOrders = expressAsyncHandler(
   }
 );
 
-
 //fail uploads results
 export const failedUploadsResult = expressAsyncHandler(
   async (req: StoreAccessRequest, res: Response, next: NextFunction) => {
@@ -230,8 +257,7 @@ export const failedUploadsResult = expressAsyncHandler(
 
       const [total, failedUploadsResults] = await Promise.all([
         FailedProductUploadModel.countDocuments(filter),
-        FailedProductUploadModel
-          .find(filter)
+        FailedProductUploadModel.find(filter)
           .sort({ createdAt: -1 })
           .skip(skip)
           .limit(limit)
