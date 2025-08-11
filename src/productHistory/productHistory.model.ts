@@ -13,11 +13,6 @@ const supplierSchema = new mongoose.Schema({
 
 const productHistorySchema = new mongoose.Schema(
   {
-    // productId: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: 'Product',
-    //   required: true,
-    // },
     storeID: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Store',
@@ -82,20 +77,8 @@ const productHistorySchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+productHistorySchema.index({ sku: 1, upc: 1 });
+productHistorySchema.index({ storeID: 1, createdAt: -1 });
 
 export default mongoose.model('ProductHistory', productHistorySchema);
 
-// Create error model schema
-const errorSchema = new mongoose.Schema({
-  uploadId: String,
-  rowIndex: Number,
-  rowData: Object,
-  errorType: String,
-  errorMessage: String,
-  timestamp: { type: Date, default: Date.now },
-  resolved: { type: Boolean, default: false },
-});
-
-const UploadError = mongoose.model('UploadError', errorSchema);
-
-export { UploadError };

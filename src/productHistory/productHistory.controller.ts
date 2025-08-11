@@ -144,24 +144,45 @@ export const deleteProduct = async (
   }
 };
 
-// ✅ Get All Product History
+// ✅ Get All Product History - Optimized Version
 export const getAllProductHistory = async (
-  req: StoreAccessRequest, // Changed to StoreAccessRequest
+  req: StoreAccessRequest,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const user = req.user!; // Get the authenticated user
+    const user = req.user!;
     const search = String(req.query.sku || req.query.search || '').trim();
-
     const storeIDParam = req.query.storeID as string | undefined;
-    let storeIDs: mongoose.Types.ObjectId[] | undefined = undefined;
+
+    // Process store IDs
+    let storeIDs: mongoose.Types.ObjectId[] | undefined;
     if (storeIDParam) {
       storeIDs = storeIDParam
         .split(',')
         .map((id) => new mongoose.Types.ObjectId(id.trim()));
+
+      // Verify access to all requested stores
+      for (const id of storeIDs) {
+        if (!checkStoreAccess(user, id.toString())) {
+          return next(
+            createHttpError(403, `No access to store ${id.toString()}`)
+          );
+        }
+      }
+    } else {
+      storeIDs = user.allowedStores.filter(
+        (id) => id instanceof mongoose.Types.ObjectId
+      );
     }
+
+    // Base pipeline with store filtering
     const pipeline: any[] = [
+      {
+        $match: {
+          storeID: { $in: storeIDs },
+        },
+      },
       {
         $lookup: {
           from: 'stores',
@@ -173,73 +194,66 @@ export const getAllProductHistory = async (
       { $unwind: { path: '$store', preserveNullAndEmptyArrays: true } },
     ];
 
-    // Store filtering logic - similar to getOrders
-    if (storeIDs && storeIDs.length > 0) {
-      // If specific store is requested, verify access
-      for (const id of storeIDs) {
-        if (!checkStoreAccess(user, id.toHexString())) {
-          return next(
-            createHttpError(403, `No access to store ${id.toHexString()}`)
-          );
-        }
-      }
-      pipeline.push({
-        $match: { storeID: { $in: storeIDs } },
-      });
-    } else {
-      // If no store specified, filter by user's allowed stores
-      const allowedStores = await storeModel
-        .find({
-          _id: { $in: user.allowedStores },
-        })
-        .select('_id'); // We need the _id for matching
-
-      pipeline.push({
+    // Add search filter if search term exists
+    if (search) {
+      pipeline.unshift({
         $match: {
-          storeID: {
-            $in: allowedStores.map((store) => store._id),
-          },
+          $or: [
+            { sku: { $regex: search, $options: 'i' } },
+            { upc: { $regex: search, $options: 'i' } },
+            { orderId: { $regex: search, $options: 'i' } },
+          ],
         },
       });
     }
 
-    // Clone for count & aggregation
-    const countPipeline = [...pipeline, { $count: 'total' }];
-    const totalAggregationPipeline = [
-      ...pipeline,
-      {
-        $group: {
-          _id: null,
-          totalPurchase: { $sum: '$purchaseQuantity' },
-          totalReceive: { $sum: '$receiveQuantity' },
-          totalLost: { $sum: '$lostQuantity' },
-          totalSendToWFS: { $sum: '$sendToWFS' },
-          totalCost: {
-            $sum: { $multiply: ['$purchaseQuantity', '$costOfPrice'] },
-          },
-          totalWFSCost: { $sum: { $multiply: ['$sendToWFS', '$costOfPrice'] } },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          totalPurchase: 1,
-          totalReceive: 1,
-          totalLost: 1,
-          totalSendToWFS: 1,
-          totalCost: 1,
-          totalWFSCost: 1,
-          remainingQuantity: {
-            $subtract: ['$totalPurchase', '$totalSendToWFS'],
-          },
-          remainingCost: { $subtract: ['$totalCost', '$totalWFSCost'] },
-        },
-      },
-    ];
+    // Pagination setup
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Number(req.query.limit) || 20, 100);
+    const skip = (page - 1) * limit;
 
-    const [countResult, summaryResult] = await Promise.all([
-      productHistoryModel.aggregate(countPipeline),
-      productHistoryModel.aggregate(totalAggregationPipeline),
+    // Get both data and count in parallel
+    const [products, countResult, summaryResult] = await Promise.all([
+      productHistoryModel.aggregate([
+        ...pipeline,
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+      ]),
+      productHistoryModel.aggregate([...pipeline, { $count: 'total' }]),
+      productHistoryModel.aggregate([
+        ...pipeline,
+        {
+          $group: {
+            _id: null,
+            totalPurchase: { $sum: '$purchaseQuantity' },
+            totalReceive: { $sum: '$receiveQuantity' },
+            totalLost: { $sum: '$lostQuantity' },
+            totalSendToWFS: { $sum: '$sendToWFS' },
+            totalCost: {
+              $sum: { $multiply: ['$purchaseQuantity', '$costOfPrice'] },
+            },
+            totalWFSCost: {
+              $sum: { $multiply: ['$sendToWFS', '$costOfPrice'] },
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            totalPurchase: 1,
+            totalReceive: 1,
+            totalLost: 1,
+            totalSendToWFS: 1,
+            totalCost: 1,
+            totalWFSCost: 1,
+            remainingQuantity: {
+              $subtract: ['$totalPurchase', '$totalSendToWFS'],
+            },
+            remainingCost: { $subtract: ['$totalCost', '$totalWFSCost'] },
+          },
+        },
+      ]),
     ]);
 
     const total = countResult[0]?.total || 0;
@@ -253,17 +267,6 @@ export const getAllProductHistory = async (
       remainingQuantity: 0,
       remainingCost: 0,
     };
-
-    // Pagination
-    const page = Math.max(Number(req.query.page) || 1, 1);
-    const limit = Math.min(Number(req.query.limit) || 20, 100);
-    const skip = (page - 1) * limit;
-
-    pipeline.push({ $sort: { createdAt: -1 } });
-    pipeline.push({ $skip: skip });
-    pipeline.push({ $limit: limit });
-
-    const products = await productHistoryModel.aggregate(pipeline);
 
     res.status(200).json({
       success: true,
@@ -291,11 +294,7 @@ export const updateSingleField = async (
     const { id } = req.params;
     const { field, value } = req.body;
 
-    const inventoryFields = [
-      'purchaseQuantity',
-      'lostQuantity',
-      'sendToWFS',
-    ];
+    const inventoryFields = ['purchaseQuantity', 'lostQuantity', 'sendToWFS'];
     const validFields = [
       'orderId',
       ...inventoryFields,
@@ -440,7 +439,6 @@ export const getProductHistoryList = async (
     next(error);
   }
 };
-
 
 export const bulkUploadProductHistory = async (
   req: Request,
@@ -709,7 +707,7 @@ async function processBatch(
         sku: upc,
         upc,
         purchaseQuantity,
-        orderQuantity: purchaseQuantity, // Added order quantity
+        orderQuantity: 0, // Added order quantity
         lostQuantity,
         sendToWFS,
         costOfPrice: costPerItem,
