@@ -1,0 +1,12 @@
+PORT=4000
+MONGO_URI=mongodb+srv://infomashrufahmed:DmM0J4hgr5TKdOUT@cluster0.dn0awom.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
+# MONGO_URI=mongodb+srv://anambrur:ntKIvKL12hXFlDbP@cluster0.pxuh28u.mongodb.net/project_dashboard?retryWrites=true&w=majority&appName=Cluster0
+CLOUDINARY_CLOUD_NAME=daaj6x4h2
+CLOUDINARY_API_KEY=989638392641861
+CLOUDINARY_API_SECRET=pv6jUhG0lXN2TrmBn3uApm7p8WY
+JWT_SECRET=363ac247cf0083652d6242773cfce9954982f8e64064500dd16ecb8c4871a292
+FRONTEND_URL=http://localhost:3000
+API_BASE_URL=http://localhost:4000
+cookieDomain=.greenfba.online
+
+nodeEnv=development
