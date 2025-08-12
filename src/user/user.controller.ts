@@ -362,25 +362,44 @@ export const getAllUser = expressAsyncHandler(
 export const getUser = expressAsyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const user = await userModel
-        .findById(req.params.id)
-        .select('-password -profileImagePublicId')
-        .populate('roles')
-        .populate('allowedStores');
+      const user = await userModel.aggregate([
+        { $match: { _id: new mongoose.Types.ObjectId(req.params.id) } },
+        { $project: { password: 0, profileImagePublicId: 0 } },
+        {
+          $lookup: {
+            from: 'roles',
+            localField: 'roles',
+            foreignField: '_id',
+            as: 'roles',
+            pipeline: [
+              {
+                $lookup: {
+                  from: 'permissions',
+                  localField: 'permissions',
+                  foreignField: '_id',
+                  as: 'permissions',
+                  pipeline: [
+                    { $project: { name: 1 } }, // Include both name and _id (implicit)
+                  ],
+                },
+              },
+            ],
+          },
+        },
+        {
+          $lookup: {
+            from: 'stores',
+            localField: 'allowedStores',
+            foreignField: '_id',
+            as: 'allowedStores',
+          },
+        },
+        { $limit: 1 },
+      ]);
 
-      if (!user) return next(createHttpError(404, 'User not found'));
+      if (!user.length) return next(createHttpError(404, 'User not found'));
 
-      // Check permissions
-      const populatedUser = await userModel
-        .findById(req.user?.id)
-        .populate('roles');
-      const isAdmin = await populatedUser?.hasRole('admin');
-
-      if (!isAdmin) {
-        return next(createHttpError(403, 'Forbidden - Admin access required'));
-      }
-
-      res.status(200).json({ success: true, user });
+      res.status(200).json({ success: true, user: user[0] });
     } catch (error) {
       next(error);
     }

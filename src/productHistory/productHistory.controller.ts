@@ -3,13 +3,16 @@ import type { NextFunction, Request, Response } from 'express';
 import createHttpError from 'http-errors';
 import mongoose from 'mongoose';
 import xlsx from 'xlsx';
-import productModel from '../product/product.model.js';
+import { FailedProductUploadModel } from '../error_handaler/failedProductUpload.model.js';
+import {
+  default as Product,
+  default as productModel,
+} from '../product/product.model.js';
 import storeModel from '../store/store.model.js';
 import { StoreAccessRequest } from '../types/store-access';
 import { ProductHistoryRow } from '../types/types.js';
 import { checkStoreAccess } from '../utils/store-access.js';
 import productHistoryModel from './productHistory.model.js';
-import { FailedProductUploadModel } from '../error_handaler/failedProductUpload.model.js';
 
 export const createProductHistory = async (
   req: Request,
@@ -20,12 +23,13 @@ export const createProductHistory = async (
   session.startTransaction();
 
   try {
-    const { id } = req.params;
     const {
       storeID,
       purchase = 0,
       lost = 0,
       sentToWfs = 0,
+      sku,
+      upc,
       costOfPrice = 0,
       orderId = '',
       sellPrice = 0,
@@ -54,6 +58,17 @@ export const createProductHistory = async (
       }
     }
 
+    const getProduct = await Product.findOne({
+      $or: [{ sku }, { upc }],
+    });
+
+    if (!getProduct) {
+      await session.abortTransaction();
+      return res
+        .status(400)
+        .json({ message: 'Product not found. Please add it first.' });
+    }
+
     // Create history record
     const newProduct = await productHistoryModel.create(
       [
@@ -64,6 +79,8 @@ export const createProductHistory = async (
           sendToWFS: sentToWfs,
           costOfPrice,
           status,
+          upc: getProduct.upc,
+          sku: getProduct.sku,
           orderId,
           sellPrice,
           date,

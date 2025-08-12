@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import expressAsyncHandler from 'express-async-handler';
 import { NextFunction, Response } from 'express';
+import expressAsyncHandler from 'express-async-handler';
 import createHttpError from 'http-errors';
 import storeModel from '../store/store.model.js';
-import stockAlertModel from './stockAlert.model.js';
 import { StoreAccessRequest } from '../types/store-access.js';
 import { checkStoreAccess } from '../utils/store-access.js';
 import failedOrderModel from './failedOrder.model.js';
 import { FailedProductUploadModel } from './failedProductUpload.model.js';
+import stockAlertModel from './stockAlert.model.js';
 
 //stock alerts
 export const getAllStockAlerts = expressAsyncHandler(
@@ -18,10 +18,7 @@ export const getAllStockAlerts = expressAsyncHandler(
       const limit = Math.min(Number(req.query.limit) || 10, 100);
       const skip = (page - 1) * limit;
 
-      const {
-        storeId = '',
-        search = '',
-      } = req.query as {
+      const { storeId = '', search = '' } = req.query as {
         storeId?: string;
         search?: string;
       };
@@ -55,11 +52,6 @@ export const getAllStockAlerts = expressAsyncHandler(
       if (search) {
         const searchRegex = new RegExp(search, 'i');
         filter.$or = [{ sku: searchRegex }, { orderId: searchRegex }];
-      }
-
-      // Add reason filter
-      if (reason) {
-        filter.reason = reason;
       }
 
       // Create aggregation pipeline
