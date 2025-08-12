@@ -134,150 +134,6 @@ export const deleteProduct = async (
 };
 
 // ✅ Get All Product History - Optimized Version
-// export const getAllProductHistory = async (
-//   req: StoreAccessRequest,
-//   res: Response,
-//   next: NextFunction
-// ) => {
-//   try {
-//     const user = req.user!;
-//     const search = String(req.query.sku || req.query.search || '').trim();
-//     const storeIDParam = req.query.storeID as string | undefined;
-
-//     // Process store IDs
-//     let storeIDs: mongoose.Types.ObjectId[] | undefined;
-//     if (storeIDParam) {
-//       storeIDs = storeIDParam
-//         .split(',')
-//         .map((id) => new mongoose.Types.ObjectId(id.trim()));
-
-//       // Verify access to all requested stores
-//       for (const id of storeIDs) {
-//         if (!checkStoreAccess(user, id.toString())) {
-//           return next(
-//             createHttpError(403, `No access to store ${id.toString()}`)
-//           );
-//         }
-//       }
-//     } else {
-//       storeIDs = user.allowedStores.filter(
-//         (id) => id instanceof mongoose.Types.ObjectId
-//       );
-//     }
-
-//     // Base pipeline with store filtering
-//     const pipeline: any[] = [
-//       {
-//         $match: {
-//           storeID: { $in: storeIDs },
-//         },
-//       },
-//       {
-//         $lookup: {
-//           from: 'stores',
-//           localField: 'storeID',
-//           foreignField: '_id',
-//           as: 'store',
-//         },
-//       },
-//       { $unwind: { path: '$store', preserveNullAndEmptyArrays: true } },
-//     ];
-
-//     // Add search filter if search term exists
-//     if (search) {
-//       pipeline.unshift({
-//         $match: {
-//           $or: [
-//             { sku: { $regex: search, $options: 'i' } },
-//             { upc: { $regex: search, $options: 'i' } },
-//             { orderId: { $regex: search, $options: 'i' } },
-//           ],
-//         },
-//       });
-//     }
-
-//     // Pagination setup
-//     const page = Math.max(Number(req.query.page) || 1, 1);
-//     const limit = Math.min(Number(req.query.limit) || 20, 100);
-//     const skip = (page - 1) * limit;
-
-//     // Get both data and count in parallel
-//     const [products, countResult, summaryResult] = await Promise.all([
-//       productHistoryModel.aggregate([
-//         ...pipeline,
-//         { $sort: { createdAt: -1 } },
-//         { $skip: skip },
-//         { $limit: limit },
-//       ]),
-//       productHistoryModel.aggregate([...pipeline, { $count: 'total' }]),
-//       productHistoryModel.aggregate([
-//         ...pipeline,
-//         {
-//           $group: {
-//             _id: null,
-//             totalPurchase: { $sum: '$purchaseQuantity' },
-//             totalOrder: { $sum: '$orderQuantity' },
-//             totalLost: { $sum: '$lostQuantity' },
-//             totalSendToWFS: { $sum: '$sendToWFS' },
-//             totalCost: {
-//               $sum: { $multiply: ['$purchaseQuantity', '$costOfPrice'] },
-//             },
-//             totalWFSCost: {
-//               $sum: { $multiply: ['$sendToWFS', '$costOfPrice'] },
-//             },
-//           },
-//         },
-//         {
-//           $project: {
-//             _id: 0,
-//             totalPurchase: 1,
-//             totalOrder: 1,
-//             totalLost: 1,
-//             totalSendToWFS: 1,
-//             totalCost: 1,
-//             totalWFSCost: 1,
-//             remainingQuantity: {
-//               $subtract: ['$totalPurchase', '$totalSendToWFS'],
-//             },
-//             remainingCost: {
-//               $round: [{ $subtract: ['$totalCost', '$totalWFSCost'] }, 2],
-//             },
-//             remainingOrderQuantity: {
-//               $subtract: ['totalPurchase', '$totalOrder'],
-//             },
-//           },
-//         },
-//       ]),
-//     ]);
-
-//     const total = countResult[0]?.total || 0;
-//     const summary = summaryResult[0] || {
-//       totalPurchase: 0,
-//       totalOrder: 0,
-//       totalLost: 0,
-//       totalSendToWFS: 0,
-//       totalCost: 0,
-//       totalWFSCost: 0,
-//       remainingQuantity: 0,
-//       remainingCost: 0,
-//       remainingOrderQuantity: 0,
-//       remainigOrderCost: 0,
-//     };
-
-//     res.status(200).json({
-//       success: true,
-//       products,
-//       total,
-//       page,
-//       limit,
-//       totalPages: Math.ceil(total / limit),
-//       summary,
-//     });
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-
 export const getAllProductHistory = async (
   req: StoreAccessRequest,
   res: Response,
@@ -369,6 +225,9 @@ export const getAllProductHistory = async (
             totalWFSCost: {
               $sum: { $multiply: ['$sendToWFS', '$costOfPrice'] },
             },
+            totalLostCost: {
+              $sum: { $multiply: ['$lostQuantity', '$costOfPrice'] },
+            }
           },
         },
         {
@@ -389,6 +248,7 @@ export const getAllProductHistory = async (
             remainingOrderQuantity: {
               $subtract: ['$totalPurchase', '$totalOrder'],
             },
+            totalLostCost: 1
             
           },
         },
@@ -400,6 +260,7 @@ export const getAllProductHistory = async (
       totalPurchase: 0,
       totalOrder: 0,
       totalLost: 0,
+      totalLostCost: 0,
       totalSendToWFS: 0,
       totalCost: 0,
       totalWFSCost: 0,
