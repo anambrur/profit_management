@@ -1,15 +1,20 @@
 import mongoose from 'mongoose';
 
-const supplierSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    default: '',
+const supplierSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      default: '',
+    },
+    link: {
+      type: String,
+      trim: true,
+    },
   },
-  link: {
-    type: String,
-    trim: true,
-  },
-});
+  {
+    _id: false,
+  }
+);
 
 const productHistorySchema = new mongoose.Schema(
   {
@@ -52,7 +57,6 @@ const productHistorySchema = new mongoose.Schema(
     status: {
       type: String,
     },
-
     costOfPrice: {
       type: Number,
       default: 0,
@@ -81,4 +85,3 @@ productHistorySchema.index({ sku: 1, upc: 1 });
 productHistorySchema.index({ storeID: 1, createdAt: -1 });
 
 export default mongoose.model('ProductHistory', productHistorySchema);
-
