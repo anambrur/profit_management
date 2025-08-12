@@ -227,7 +227,7 @@ export const getAllProductHistory = async (
             },
             totalLostCost: {
               $sum: { $multiply: ['$lostQuantity', '$costOfPrice'] },
-            }
+            },
           },
         },
         {
@@ -248,8 +248,7 @@ export const getAllProductHistory = async (
             remainingOrderQuantity: {
               $subtract: ['$totalPurchase', '$totalOrder'],
             },
-            totalLostCost: 1
-            
+            totalLostCost: 1,
           },
         },
       ]),
@@ -451,14 +450,15 @@ export const bulkUploadProductHistory = async (
   }
 
   // Constants
-  const BATCH_SIZE = 100;
-  const MAX_TRANSACTION_TIME_MS = 300000; // 5 minutes
+  const BATCH_SIZE = 50;
+  const MAX_TRANSACTION_TIME_MS = 600000; // 10 minutes
 
   try {
     // 1. Parse the Excel file
     const workbook = xlsx.read(req.file.buffer, {
       type: 'buffer',
       cellDates: true,
+      dense: true,
     });
 
     const sheetName = workbook.SheetNames[0];
@@ -519,8 +519,8 @@ export const bulkUploadProductHistory = async (
     const session = await mongoose.startSession();
     session.startTransaction({
       maxCommitTimeMS: MAX_TRANSACTION_TIME_MS,
-      readConcern: { level: 'local' },
-      writeConcern: { w: 'majority', wtimeout: 50000 },
+      readConcern: { level: 'snapshot' },
+      writeConcern: { w: 'majority', j: true },
     });
 
     try {
@@ -654,131 +654,141 @@ async function processBatch(
   productMap: Map<string, any>,
   session: mongoose.ClientSession
 ) {
-  const bulkUpdates = [];
-  const bulkInserts = [];
-  const errors = [];
-  const failedUploads = [];
+  try {
+    const bulkUpdates = [];
+    const bulkInserts = [];
+    const errors = [];
+    const failedUploads = [];
 
-  for (const row of batch) {
-    try {
-      const upc = String(row.upc || '').trim();
-      const product = productMap.get(upc);
-      const orderId = String(row.orderId || '').trim();
+    for (const row of batch) {
+      try {
+        const upc = String(row.upc || '').trim();
+        const product = productMap.get(upc);
+        const orderId = String(row.orderId || '').trim();
 
-      // Parse numeric values
-      const parseNumber = (value: any): number => {
-        if (value === null || value === undefined || value === '') return 0;
-        if (typeof value === 'string') {
-          if (value.startsWith('=')) return 0;
-          value = value.replace(/[^0-9.-]+/g, '');
+        // Parse numeric values
+        const parseNumber = (value: any): number => {
+          if (value === null || value === undefined || value === '') return 0;
+          if (typeof value === 'string') {
+            if (value.startsWith('=')) return 0;
+            value = value.replace(/[^0-9.-]+/g, '');
+          }
+          return Number(value) || 0;
+        };
+
+        const purchaseQuantity = parseNumber(row.purchase);
+        const lostQuantity = parseNumber(row.lost);
+        const sendToWFS = parseNumber(row.sentToWfs);
+        const costPerItem = parseNumber(row.costPerItem);
+
+        // Check for existing record
+        const existingItem = await productHistoryModel
+          .findOne({
+            storeID: storeObjectId,
+            orderId,
+          })
+          .session(session);
+
+        if (existingItem) {
+          continue;
         }
-        return Number(value) || 0;
-      };
 
-      const purchaseQuantity = parseNumber(row.purchase);
-      const lostQuantity = parseNumber(row.lost);
-      const sendToWFS = parseNumber(row.sentToWfs);
-      const costPerItem = parseNumber(row.costPerItem);
+        // Check for zero quantity item to update
+        const zeroQuantityItem = await productHistoryModel
+          .findOne({
+            $or: [{ sku: upc }, { upc }],
+            storeID: storeObjectId,
+            purchaseQuantity: 0,
+            orderId: '',
+          })
+          .session(session);
 
-      // Check for existing record
-      const existingItem = await productHistoryModel
-        .findOne({
+        const historyRecord = {
           storeID: storeObjectId,
           orderId,
-        })
-        .session(session);
+          sku: upc,
+          upc,
+          purchaseQuantity,
+          orderQuantity: 0, // Added order quantity
+          lostQuantity,
+          sendToWFS,
+          costOfPrice: costPerItem,
+          sellPrice: product?.price?.amount || 0,
+          date: row.date ? new Date(row.date) : new Date(),
+          status: String(row.status || ''),
+          supplier: { name: '', link: String(row.link || '') },
+          email: '',
+          card: '',
+        };
 
-      if (existingItem) {
-        continue;
-      }
-
-      // Check for zero quantity item to update
-      const zeroQuantityItem = await productHistoryModel
-        .findOne({
-          $or: [{ sku: upc }, { upc }],
-          storeID: storeObjectId,
-          purchaseQuantity: 0,
-          orderId: '',
-        })
-        .session(session);
-
-      const historyRecord = {
-        storeID: storeObjectId,
-        orderId,
-        sku: upc,
-        upc,
-        purchaseQuantity,
-        orderQuantity: 0, // Added order quantity
-        lostQuantity,
-        sendToWFS,
-        costOfPrice: costPerItem,
-        sellPrice: product?.price?.amount || 0,
-        date: row.date ? new Date(row.date) : new Date(),
-        status: String(row.status || ''),
-        supplier: { name: '', link: String(row.link || '') },
-        email: '',
-        card: '',
-      };
-
-      if (zeroQuantityItem) {
-        bulkUpdates.push({
-          updateOne: {
-            filter: { _id: zeroQuantityItem._id },
-            update: { $set: historyRecord },
-          },
+        if (zeroQuantityItem) {
+          bulkUpdates.push({
+            updateOne: {
+              filter: { _id: zeroQuantityItem._id },
+              update: { $set: historyRecord },
+            },
+          });
+        } else {
+          bulkInserts.push(historyRecord);
+        }
+      } catch (error: any) {
+        errors.push({
+          row,
+          error: error.message,
         });
-      } else {
-        bulkInserts.push(historyRecord);
+
+        failedUploads.push({
+          storeId,
+          storeObjectId,
+          uploadDate: new Date(),
+          fileName: '',
+          rowData: row,
+          upc: String(row.upc || '').trim(),
+          orderId: String(row.orderId || '').trim(),
+          reason: 'ERROR',
+          errorDetails: error.message,
+          processed: false,
+        });
       }
-    } catch (error: any) {
-      errors.push({
-        row,
-        error: error.message,
-      });
-
-      failedUploads.push({
-        storeId,
-        storeObjectId,
-        uploadDate: new Date(),
-        fileName: '',
-        rowData: row,
-        upc: String(row.upc || '').trim(),
-        orderId: String(row.orderId || '').trim(),
-        reason: 'ERROR',
-        errorDetails: error.message,
-        processed: false,
-      });
     }
-  }
 
-  // Execute batch operations
-  let inserted = 0;
-  let updated = 0;
+    // Execute batch operations
+    let inserted = 0;
+    let updated = 0;
 
-  // console.log('bulkUpdates', bulkUpdates.length);
-  // console.log('bulkInserts', bulkInserts.length);
+    // console.log('bulkUpdates', bulkUpdates.length);
+    // console.log('bulkInserts', bulkInserts.length);
 
-  if (bulkUpdates.length > 0) {
-    const updateResult = await productHistoryModel.bulkWrite(bulkUpdates, {
-      session,
-      ordered: false,
+    if (bulkUpdates.length > 0) {
+      const updateResult = await productHistoryModel.bulkWrite(bulkUpdates, {
+        session,
+        ordered: false,
+      });
+      updated += updateResult.modifiedCount || 0;
+    }
+
+    if (bulkInserts.length > 0) {
+      await productHistoryModel.insertMany(bulkInserts, { session });
+      inserted += bulkInserts.length;
+    }
+
+    if (failedUploads.length > 0) {
+      await FailedProductUploadModel.insertMany(failedUploads, { session });
+    }
+
+    return {
+      inserted,
+      updated,
+      failed: failedUploads.length,
+      errors,
+    };
+  } catch (error: any) {
+    console.error('Batch processing error:', {
+      batchSize: batch.length,
+      firstRow: batch[0],
+      error: error.message,
+      stack: error.stack,
     });
-    updated += updateResult.modifiedCount || 0;
+    throw error; // Re-throw to trigger transaction abort
   }
-
-  if (bulkInserts.length > 0) {
-    await productHistoryModel.insertMany(bulkInserts, { session });
-    inserted += bulkInserts.length;
-  }
-
-  if (failedUploads.length > 0) {
-    await FailedProductUploadModel.insertMany(failedUploads, { session });
-  }
-
-  return {
-    inserted,
-    updated,
-    failed: failedUploads.length,
-    errors,
-  };
 }
