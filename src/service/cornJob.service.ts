@@ -2,14 +2,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from 'axios';
 import cron from 'node-cron';
-import { sendNotification } from './notification.service.js';
 import storeModel from '../store/store.model.js';
+import { sendNotification } from './notification.service.js';
 
 const apiUrl = process.env.API_BASE_URL;
 
 // Revised cron job to process all stores
 const OrderCornJob = () => {
-  cron.schedule('*/8 * * * *', async () => {
+  cron.schedule('*/10 * * * *', async () => {
     try {
       const jobStartTime = new Date();
       sendNotification(
@@ -252,7 +252,7 @@ const OrderCornJob = () => {
 };
 
 const ProductCornJob = () => {
-  cron.schedule('*/6 * * * *', async () => {
+  cron.schedule('*/55 * * * *', async () => {
     try {
       // Start notification with timestamp
       const startTime = new Date();
