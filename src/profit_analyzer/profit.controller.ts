@@ -1,13 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextFunction, Request, Response } from 'express';
+import { NextFunction, Response } from 'express';
 import orderModel from '../order/order.model.js';
+import storeModel from '../store/store.model.js';
+import { checkStoreAccess } from '../utils/store-access.js';
+import { StoreAccessRequest } from '../types/store-access';
+import createHttpError from 'http-errors';
 
 export const getProfit = async (
-  req: Request,
+  req: StoreAccessRequest,
   res: Response,
   next: NextFunction
 ) => {
   try {
+    const user = req.user!;
     const now = new Date();
 
     // Extract query parameters with type safety
@@ -15,11 +20,28 @@ export const getProfit = async (
     const startDate = req.query.startDate?.toString();
     const endDate = req.query.endDate?.toString();
     const storeIds = req.query.storeIds?.toString();
-    const storeIdArray = storeIds
-      ? storeIds.split(',')
-      : storeId
-        ? [storeId]
-        : undefined;
+    
+    // Handle store access validation
+    let storeIdArray: string[] | undefined;
+    
+    if (storeIds) {
+      storeIdArray = storeIds.split(',').map(id => id.trim());
+      const unauthorized = storeIdArray.some(id => !checkStoreAccess(user, id));
+      if (unauthorized) {
+        return next(createHttpError(403, 'No access to one or more stores'));
+      }
+    } else if (storeId) {
+      storeIdArray = [storeId];
+      if (!checkStoreAccess(user, storeId)) {
+        return next(createHttpError(403, 'No access to this store'));
+      }
+    } else {
+      // If no storeId provided, use all allowed stores
+      const allowedStores = await storeModel
+        .find({ _id: { $in: user.allowedStores } })
+        .select('storeId -_id');
+      storeIdArray = allowedStores.map(store => store.storeId);
+    }
 
     // Parallel fetching of fixed period data
     const [today, yesterday, thisMonth, lastMonth, last6Months] =
@@ -88,11 +110,11 @@ async function getPeriodData(period: string, now: Date, storeIds?: string[]) {
       endDate = new Date(now.setHours(23, 59, 59, 999));
       break;
     case 'yesterday':
-      const yesterday = new Date(now);
+      { const yesterday = new Date(now);
       yesterday.setDate(yesterday.getDate() - 1);
       startDate = new Date(yesterday.setHours(0, 0, 0, 0));
       endDate = new Date(yesterday.setHours(23, 59, 59, 999));
-      break;
+      break; }
     case 'thisMonth':
       startDate = new Date(now.getFullYear(), now.getMonth(), 1);
       endDate = new Date(
