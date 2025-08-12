@@ -4,10 +4,7 @@ import createHttpError from 'http-errors';
 import mongoose from 'mongoose';
 import xlsx from 'xlsx';
 import { FailedProductUploadModel } from '../error_handaler/failedProductUpload.model.js';
-import {
-  default as Product,
-  default as productModel,
-} from '../product/product.model.js';
+import { default as productModel } from '../product/product.model.js';
 import storeModel from '../store/store.model.js';
 import { StoreAccessRequest } from '../types/store-access';
 import { ProductHistoryRow } from '../types/types.js';
@@ -37,37 +34,9 @@ export const createProductHistory = async (
       status = '',
       email = '',
       card = '',
-      supplier,
+      supplierName = '',
+      supplierLink = '',
     } = req.body;
-
-    // Handle supplier
-    let supplierObject;
-    if (supplier) {
-      try {
-        supplierObject =
-          typeof supplier === 'string' ? JSON.parse(supplier) : supplier;
-        if (!supplierObject?.name || !supplierObject?.link) {
-          await session.abortTransaction();
-          return res
-            .status(400)
-            .json({ message: 'Supplier must have name and link' });
-        }
-      } catch {
-        await session.abortTransaction();
-        return res.status(400).json({ message: 'Invalid supplier format' });
-      }
-    }
-
-    const getProduct = await Product.findOne({
-      $or: [{ sku }, { upc }],
-    });
-
-    if (!getProduct) {
-      await session.abortTransaction();
-      return res
-        .status(400)
-        .json({ message: 'Product not found. Please add it first.' });
-    }
 
     // Create history record
     const newProduct = await productHistoryModel.create(
@@ -79,14 +48,17 @@ export const createProductHistory = async (
           sendToWFS: sentToWfs,
           costOfPrice,
           status,
-          upc: getProduct.upc,
-          sku: getProduct.sku,
+          upc: upc,
+          sku: sku,
           orderId,
           sellPrice,
           date,
           email,
           card,
-          supplier: supplierObject,
+          supplier: {
+            name: supplierName,
+            link: supplierLink,
+          },
         },
       ],
       { session }

@@ -9,6 +9,7 @@ import {
   deleteProduct,
   getAllProductHistory,
   getProductHistoryList,
+  updateProduct,
   updateSingleField,
 } from './productHistory.controller.js';
 
@@ -22,7 +23,7 @@ productHistoryRouter.get(
 );
 
 productHistoryRouter.post(
-  '/create-product-history/:id',
+  '/create-product-history',
   authenticateUser,
   hasPermission('product-history:create'),
   (req, res, next) => {
@@ -43,6 +44,14 @@ productHistoryRouter.patch(
   hasPermission('product-history:edit'),
   (req, res, next) => {
     Promise.resolve(updateSingleField(req, res, next)).catch(next);
+  }
+);
+productHistoryRouter.put(
+  '/update/:id',
+  authenticateUser,
+  hasPermission('product-history:edit'),
+  (req, res, next) => {
+    Promise.resolve(updateProduct(req, res, next)).catch(next);
   }
 );
 
