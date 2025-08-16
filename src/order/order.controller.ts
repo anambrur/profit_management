@@ -169,7 +169,7 @@ export const getOrders = expressAsyncHandler(
         ];
       }
 
-      console.log('Final filter:', JSON.stringify(filter, null, 2)); // Debug log
+      // console.log('Final filter:', JSON.stringify(filter, null, 2)); // Debug log
 
       const [total, orders, sums] = await Promise.all([
         orderModel.countDocuments(filter),
