@@ -170,6 +170,7 @@ export const getAllProductHistory = async (
       {
         $match: {
           storeID: { $in: storeIDs },
+          orderId: { $ne: "" }
         },
       },
       {
@@ -228,6 +229,9 @@ export const getAllProductHistory = async (
             totalLostCost: {
               $sum: { $multiply: ['$lostQuantity', '$costOfPrice'] },
             },
+            totalOrderAmount: {
+              $sum: { $multiply: ['$orderQuantity', '$costOfPrice'] },
+            },
           },
         },
         {
@@ -249,6 +253,7 @@ export const getAllProductHistory = async (
               $subtract: ['$totalPurchase', '$totalOrder'],
             },
             totalLostCost: 1,
+            totalOrderAmount: 1,
           },
         },
       ]),
@@ -266,6 +271,7 @@ export const getAllProductHistory = async (
       remainingQuantity: 0,
       remainingCost: 0,
       remainingOrderQuantity: 0,
+      totalOrderAmount: 0,
     };
 
     res.status(200).json({
@@ -525,10 +531,6 @@ export const bulkUploadProductHistory = async (
 
     try {
       // Clear previous failed records
-      await FailedProductUploadModel.deleteMany({
-        storeObjectId: req.body.storeID,
-      }).session(session);
-
       const results = {
         totalRows: rawData.length,
         validRows: validRows.length,
@@ -560,20 +562,42 @@ export const bulkUploadProductHistory = async (
 
       // Save skipped rows as failed uploads
       if (skippedRows.length > 0) {
-        const failedUploads = skippedRows.map(({ row, reason }) => ({
-          storeId: store.storeId,
+        // First check which rows already exist
+        const existingFailedUploads = await FailedProductUploadModel.find({
           storeObjectId: req.body.storeID,
-          uploadDate: new Date(),
-          fileName: req.file!.originalname,
-          rowData: row,
-          upc: String(row.upc || '').trim(),
-          orderId: String(row.orderId || '').trim(),
-          reason: 'SKIPPED',
-          errorDetails: reason,
-          processed: false,
-        }));
+          storeId: store.storeId,
+          orderId: {
+            $in: skippedRows.map((r) => String(r.row.orderId || '').trim()),
+          },
+        }).session(session);
 
-        await FailedProductUploadModel.insertMany(failedUploads, { session });
+        const existingOrderIds = new Set(
+          existingFailedUploads.map((u) => u.orderId)
+        );
+
+        // Only create new failed uploads for non-existing records
+        const newFailedUploads = skippedRows
+          .filter(
+            ({ row }) => !existingOrderIds.has(String(row.orderId || '').trim())
+          )
+          .map(({ row, reason }) => ({
+            storeId: store.storeId,
+            storeObjectId: req.body.storeID,
+            uploadDate: new Date(),
+            fileName: req.file!.originalname,
+            rowData: row,
+            upc: String(row.upc || '').trim(),
+            orderId: String(row.orderId || '').trim(),
+            reason: 'SKIPPED',
+            errorDetails: reason,
+            processed: false,
+          }));
+
+        if (newFailedUploads.length > 0) {
+          await FailedProductUploadModel.insertMany(newFailedUploads, {
+            session,
+          });
+        }
       }
 
       await session.commitTransaction();
