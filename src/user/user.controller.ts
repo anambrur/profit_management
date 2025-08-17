@@ -159,7 +159,7 @@ export const loginUser = expressAsyncHandler(
       if (!isComparePassword) {
         return next(createHttpError(401, 'Invalid password'));
       }
-      
+
       // Update last login
       user.lastLogin = new Date();
       await user.save();
@@ -257,13 +257,28 @@ export const updateUser = expressAsyncHandler(
       }
 
       // Update basic fields
-      const { name, email, username, phone, address, status, allowedStores } =
-        req.body;
+      const {
+        name,
+        email,
+        username,
+        phone,
+        address,
+        status,
+        allowedStores,
+        newPassword,
+      } = req.body;
+      
       user.name = name || user.name;
       user.email = email || user.email;
       user.username = username || user.username;
       user.phone = phone || user.phone;
       user.address = address || user.address;
+
+      if (newPassword) {
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+        user.password = hashedPassword;
+      }
 
       // Only admin can update status, roles, and stores
       if (req.user?.hasRole('admin')) {
