@@ -144,6 +144,13 @@ export const getAllProductHistory = async (
     const search = String(req.query.sku || req.query.search || '').trim();
     const storeIDParam = req.query.storeID as string | undefined;
 
+    const startDate = req.query.startDate
+      ? new Date(req.query.startDate as string)
+      : null;
+    const endDate = req.query.endDate
+      ? new Date(req.query.endDate as string)
+      : null;
+
     // Process store IDs
     let storeIDs: mongoose.Types.ObjectId[] | undefined;
     if (storeIDParam) {
@@ -170,7 +177,14 @@ export const getAllProductHistory = async (
       {
         $match: {
           storeID: { $in: storeIDs },
-          orderId: { $ne: "" }
+          orderId: { $ne: '' },
+          ...(startDate &&
+            endDate && {
+              date: {
+                $gte: startDate, // Greater than or equal to startDate
+                $lte: endDate, // Less than or equal to endDate
+              },
+            }),
         },
       },
       {
