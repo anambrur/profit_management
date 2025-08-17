@@ -84,13 +84,6 @@ userSchema.pre<IUser>('save', async function (next) {
   }
 });
 
-// Password comparison method
-userSchema.methods.comparePassword = async function (
-  this: IUser,
-  candidatePassword: string
-): Promise<boolean> {
-  return bcrypt.compare(candidatePassword, this.password);
-};
 
 // Assign role to user
 userSchema.methods.assignRole = async function (

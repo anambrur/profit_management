@@ -155,11 +155,11 @@ export const loginUser = expressAsyncHandler(
       if (user.status !== 'active') {
         return next(createHttpError(403, 'Account is not active'));
       }
-
-      if (!user.comparePassword(password)) {
+      const isComparePassword = await bcrypt.compare(password, user.password);
+      if (!isComparePassword) {
         return next(createHttpError(401, 'Invalid password'));
       }
-
+      
       // Update last login
       user.lastLogin = new Date();
       await user.save();
