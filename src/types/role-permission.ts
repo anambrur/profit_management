@@ -28,7 +28,6 @@ export interface IUser extends Document {
   allowedStores: Schema.Types.ObjectId[];
 
   // Methods
-  comparePassword(candidatePassword: string): Promise<boolean>;
   assignRole(roleNames: string[]): Promise<IUser>;
   removeRole(roleNames: string[]): Promise<IUser>;
   hasRole(roleName: string): Promise<boolean>;
